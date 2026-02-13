@@ -91,6 +91,26 @@ func (d *Demuxer) parseTrack(trak Atom) (*Track, error) {
 	tr.Width = width
 	tr.Height = height
 
+	// 1b. edts -> elst (Edit List) — Sync correction
+	edtsAtom := findChildPath(trak, "edts")
+	if edtsAtom != nil {
+		elstAtom := findChildPath(*edtsAtom, "elst")
+		if elstAtom != nil {
+			entries, parseErr := d.ParseElst(*elstAtom)
+			if parseErr == nil {
+				tr.EditList = entries
+				// Compute MediaTimeOffset from first non-empty edit
+				for _, e := range entries {
+					if e.MediaTime >= 0 {
+						tr.MediaTimeOffset = e.MediaTime
+						break
+					}
+				}
+				fmt.Printf("[Demuxer] Track edts: %d edit list entries, MediaTimeOffset=%d\n", len(entries), tr.MediaTimeOffset)
+			}
+		}
+	}
+
 	// 2. mdia -> mdhd (Media Header - Timescale)
 	mdiaAtom := findChildPath(trak, "mdia")
 	if mdiaAtom == nil {
@@ -371,6 +391,59 @@ func (d *Demuxer) ParseCtts(atom Atom) ([]struct {
 			if err := binary.Read(d.file, binary.BigEndian, &entries[i].Offset); err != nil {
 				return nil, err
 			}
+		}
+	}
+	return entries, nil
+}
+
+// ParseElst parses Edit List box for A/V sync correction
+func (d *Demuxer) ParseElst(atom Atom) ([]EditListEntry, error) {
+	if _, err := d.file.Seek(atom.Offset+8, io.SeekStart); err != nil {
+		return nil, err
+	}
+	version, _, err := readFullBoxHeader(d.file)
+	if err != nil {
+		return nil, err
+	}
+
+	var entryCount uint32
+	if err := binary.Read(d.file, binary.BigEndian, &entryCount); err != nil {
+		return nil, err
+	}
+
+	entries := make([]EditListEntry, entryCount)
+	for i := 0; i < int(entryCount); i++ {
+		if version == 1 {
+			// 64-bit: SegmentDuration(8) + MediaTime(8) + Rate(4)
+			var segDur uint64
+			var mediaTime int64
+			if err := binary.Read(d.file, binary.BigEndian, &segDur); err != nil {
+				return nil, err
+			}
+			if err := binary.Read(d.file, binary.BigEndian, &mediaTime); err != nil {
+				return nil, err
+			}
+			entries[i].SegmentDuration = segDur
+			entries[i].MediaTime = mediaTime
+		} else {
+			// 32-bit: SegmentDuration(4) + MediaTime(4) + Rate(4)
+			var segDur32 uint32
+			var mediaTime32 int32
+			if err := binary.Read(d.file, binary.BigEndian, &segDur32); err != nil {
+				return nil, err
+			}
+			if err := binary.Read(d.file, binary.BigEndian, &mediaTime32); err != nil {
+				return nil, err
+			}
+			entries[i].SegmentDuration = uint64(segDur32)
+			entries[i].MediaTime = int64(mediaTime32)
+		}
+		// Rate: 16.16 fixed point
+		if err := binary.Read(d.file, binary.BigEndian, &entries[i].MediaRateInt); err != nil {
+			return nil, err
+		}
+		if err := binary.Read(d.file, binary.BigEndian, &entries[i].MediaRateFrac); err != nil {
+			return nil, err
 		}
 	}
 	return entries, nil

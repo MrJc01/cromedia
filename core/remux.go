@@ -353,10 +353,31 @@ func makeTrakAtom(t Track, trackID int, sampleOffsets map[int]int64, useCo64 boo
 	tkhdData.WriteUint32(t.Width)
 	tkhdData.WriteUint32(t.Height)
 
-	return &SimpleAtom{Type: "trak", Children: []*SimpleAtom{
+	// Build trak children
+	trakChildren := []*SimpleAtom{
 		{Type: "tkhd", Data: tkhdData.Bytes()},
-		mdia,
-	}}
+	}
+
+	// edts (Edit List) — Sync correction propagation
+	if len(t.EditList) > 0 {
+		elstData := new(ExcludeBuffer)
+		elstData.WriteUint32(0) // Version 0 + Flags
+		elstData.WriteUint32(uint32(len(t.EditList)))
+		for _, e := range t.EditList {
+			elstData.WriteUint32(uint32(e.SegmentDuration))
+			elstData.WriteUint32(uint32(e.MediaTime)) // int32 in v0
+			elstData.WriteUint16(uint16(e.MediaRateInt))
+			elstData.WriteUint16(uint16(e.MediaRateFrac))
+		}
+		edts := &SimpleAtom{Type: "edts", Children: []*SimpleAtom{
+			{Type: "elst", Data: elstData.Bytes()},
+		}}
+		trakChildren = append(trakChildren, edts)
+	}
+
+	trakChildren = append(trakChildren, mdia)
+
+	return &SimpleAtom{Type: "trak", Children: trakChildren}
 }
 
 func convertTime(val uint64, fromScale, toScale uint32) int64 {

@@ -16,6 +16,7 @@ var ContainerAtoms = map[string]bool{
 	"dinf": true,
 	"stbl": true,
 	"mvex": true,
+	"edts": true,
 }
 
 // Atom represents an MP4 box/atom
@@ -98,7 +99,7 @@ func parseAtoms(file *os.File, start, end int64) ([]Atom, error) {
 			if size == 1 {
 				headerSize = 16
 			}
-			
+
 			children, err := parseAtoms(file, offset+headerSize, offset+size)
 			if err != nil {
 				// Don't fail completely on malformed children, just log/warn?
