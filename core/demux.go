@@ -86,10 +86,11 @@ func (d *Demuxer) parseTrack(trak Atom) (*Track, error) {
 		return nil, fmt.Errorf("missing tkhd")
 	}
 	tr.Tkhd = readPayload(d.file, tkhdAtom)
-	// Parse Width/Height for Video (Best effort)
-	width, height, _ := d.ParseTkhd(*tkhdAtom)
+	// Parse Width/Height/Matrix for Video (Best effort)
+	width, height, matrix, _ := d.ParseTkhd(*tkhdAtom)
 	tr.Width = width
 	tr.Height = height
+	tr.Matrix = matrix
 
 	// 1b. edts -> elst (Edit List) — Sync correction
 	edtsAtom := findChildPath(trak, "edts")
@@ -491,35 +492,44 @@ func (d *Demuxer) ParseMdhd(atom Atom) (uint32, uint64, error) {
 	return timescale, duration, nil
 }
 
-// ParseTkhd parses Track Header to get Width and Height
-func (d *Demuxer) ParseTkhd(atom Atom) (width, height uint32, err error) {
+// ParseTkhd parses Track Header to get Width, Height, and Matrix
+func (d *Demuxer) ParseTkhd(atom Atom) (width, height uint32, matrix []byte, err error) {
 	if _, err := d.file.Seek(atom.Offset+8, io.SeekStart); err != nil {
-		return 0, 0, err
+		return 0, 0, nil, err
 	}
 	version, _, err := readFullBoxHeader(d.file)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, nil, err
 	}
 
-	skip := int64(0)
+	// Skip: times + reserved(8) + layer/alt/vol/res(8)
+	// V0: times=20, V1: times=32
+	skipToMatrix := int64(0)
 	if version == 0 {
-		skip = 20 + 8 + 8 + 36
+		skipToMatrix = 20 + 8 + 8 // times(20) + reserved(8) + layer/alt/vol/res(8)
 	} else {
-		skip = 32 + 8 + 8 + 36
+		skipToMatrix = 32 + 8 + 8 // times(32) + reserved(8) + layer/alt/vol/res(8)
 	}
 
-	if _, err := d.file.Seek(skip, io.SeekCurrent); err != nil {
-		return 0, 0, err
+	if _, err := d.file.Seek(skipToMatrix, io.SeekCurrent); err != nil {
+		return 0, 0, nil, err
 	}
 
+	// Read 36-byte matrix
+	matrix = make([]byte, 36)
+	if _, err := io.ReadFull(d.file, matrix); err != nil {
+		return 0, 0, nil, err
+	}
+
+	// Read width and height (16.16 fixed point)
 	if err := binary.Read(d.file, binary.BigEndian, &width); err != nil {
-		return 0, 0, err
+		return 0, 0, nil, err
 	}
 	if err := binary.Read(d.file, binary.BigEndian, &height); err != nil {
-		return 0, 0, err
+		return 0, 0, nil, err
 	}
 
-	return width, height, nil
+	return width, height, matrix, nil
 }
 
 // LocateTables finds the stbl children from a trak atom (scoped)

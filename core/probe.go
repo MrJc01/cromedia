@@ -17,6 +17,7 @@ var ContainerAtoms = map[string]bool{
 	"stbl": true,
 	"mvex": true,
 	"edts": true,
+	"udta": true,
 }
 
 // Atom represents an MP4 box/atom

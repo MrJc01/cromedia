@@ -35,6 +35,7 @@ type Track struct {
 	// Video Specific
 	Width  uint32
 	Height uint32
+	Matrix []byte // 36-byte rotation/transformation matrix from tkhd
 
 	// Audio Specific
 	Volume uint16

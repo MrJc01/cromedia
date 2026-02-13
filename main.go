@@ -30,8 +30,12 @@ func getAllAtomTypes(atoms []core.Atom) []string {
 
 func main() {
 	if len(os.Args) < 2 {
+		fmt.Println("CroMedia v0.8 — High-Performance MP4 Smart Cutter")
 		fmt.Println("Usage: cromedia <command> [args]")
-		fmt.Println("Commands: probe, cut")
+		fmt.Println("Commands:")
+		fmt.Println("  probe  <file.mp4>                              Inspect atom tree")
+		fmt.Println("  cut    <input> <start> <end> <output> [--smart] Cut video (keyframe-accurate)")
+		fmt.Println("  version                                         Show version")
 		os.Exit(1)
 	}
 
@@ -83,6 +87,17 @@ func main() {
 		startSec, _ := strconv.ParseFloat(os.Args[3], 64)
 		endSec, _ := strconv.ParseFloat(os.Args[4], 64)
 		outputFile := os.Args[5]
+
+		// Check for --smart flag
+		smartMode := false
+		for _, arg := range os.Args[6:] {
+			if arg == "--smart" {
+				smartMode = true
+			}
+		}
+		if smartMode {
+			fmt.Println("[Main] 🧠 Smart Rendering mode enabled (future: re-encode GOP boundaries)")
+		}
 
 		file, err := os.Open(inputFile)
 		if err != nil {
@@ -153,7 +168,11 @@ func main() {
 
 		fmt.Printf("Surgery Complete. Created valid Multi-Track MP4: %s\n", outputFile)
 
+	case "version":
+		fmt.Println("CroMedia v0.8")
+		fmt.Println("Features: Multi-Track, Interleaving, B-Frame (ctts), Edit Lists (edts), Matrix Rotation, co64")
+
 	default:
-		fmt.Println("Unknown command")
+		fmt.Println("Unknown command. Use 'cromedia' for help.")
 	}
 }

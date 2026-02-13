@@ -349,7 +349,12 @@ func makeTrakAtom(t Track, trackID int, sampleOffsets map[int]int64, useCo64 boo
 	}
 	tkhdData.WriteUint16(vol) // Volume
 	tkhdData.WriteUint16(0)   // Reserved
-	tkhdData.WriteBytes(identityMatrix())
+	// Use original matrix (preserves rotation) or fallback to identity
+	if len(t.Matrix) == 36 {
+		tkhdData.WriteBytes(t.Matrix)
+	} else {
+		tkhdData.WriteBytes(identityMatrix())
+	}
 	tkhdData.WriteUint32(t.Width)
 	tkhdData.WriteUint32(t.Height)
 
