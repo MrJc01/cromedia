@@ -28,6 +28,21 @@ type Track struct {
 	Width  uint32
 	Height uint32
 
-	// Audio Specific (TODO: Parse explicit values if needed, for now just payload)
+	// Audio Specific
 	Volume uint16
+
+	// B-Frame Support: Composition Time Offsets (ctts)
+	// Per-sample CTS offsets. If empty, PTS == DTS (no B-Frames).
+	CTSOffsets []int32
+
+	// Codec Detection
+	CodecTag string // "avc1", "hev1", "mp4a", etc.
+}
+
+// InterleavedSample is used for interleaved mdat writing
+type InterleavedSample struct {
+	TrackIndex  int
+	SampleIndex int
+	TimeSeconds float64 // Normalized time for cross-track ordering
+	Sample      Sample
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 )
 
 // Remuxer handles the reconstruction of MP4 atoms
@@ -12,7 +13,7 @@ type Remuxer struct {
 	InputFile *os.File
 }
 
-// WriteMultiTrackFile generates a valid MP4 from a list of Tracks
+// WriteMultiTrackFile generates a valid MP4 from a list of Tracks with interleaved mdat
 func (r *Remuxer) WriteMultiTrackFile(outputFile string, tracks []Track) error {
 	out, err := os.Create(outputFile)
 	if err != nil {
@@ -26,99 +27,134 @@ func (r *Remuxer) WriteMultiTrackFile(outputFile string, tracks []Track) error {
 	ftypSize := uint32(24)
 	writer.WriteUint32(ftypSize)
 	writer.WriteTag("ftyp")
-	writer.WriteTag("isom") // Major brand
-	writer.WriteUint32(512) // Minor version
-	writer.WriteTag("isom") // Compatible
-	writer.WriteTag("mp41") // Compatible
+	writer.WriteTag("isom")
+	writer.WriteUint32(512)
+	writer.WriteTag("isom")
+	writer.WriteTag("mp41")
 
-	// 2. Prepare Metadata (moov)
-	// a. Generate moov with dummy offsets (0)
-	dummyMoov := makeMoovMultiTrack(tracks, 0)
+	// 2. Build Interleaved Sample Order
+	interleaved := buildInterleavedOrder(tracks)
+	fmt.Printf("[Remuxer] Interleaved %d total samples across %d tracks\n", len(interleaved), len(tracks))
+
+	// 3. Calculate mdat size
+	mdatDataSize := int64(0)
+	for _, is := range interleaved {
+		mdatDataSize += is.Sample.Size
+	}
+
+	// 4. Determine if we need co64 (offsets > 4GB)
+	useCo64 := mdatDataSize > (1 << 31) // Conservative: 2GB threshold for safety
+
+	// 5. Generate moov with dummy offsets to calculate its size
+	dummyMoov := makeMoovMultiTrack(tracks, interleaved, 0, useCo64)
 	dummyBytes := serializeAtom(dummyMoov)
 
-	// b. Calculate mdat position
-	// ftyp(24) + moov(len(dummyBytes)) + mdatHeader(8)
-	mdatStartPos := int64(ftypSize) + int64(len(dummyBytes)) + 8
+	// 6. Calculate real mdat start position
+	mdatStartPos := int64(ftypSize) + int64(len(dummyBytes)) + 8 // +8 for mdat header
 
-	// c. Generate REAL moov with correct offsets
-	// For MVP: Sequential. Track 0 samples, then Track 1 samples...
-	moov := makeMoovMultiTrack(tracks, mdatStartPos)
+	// 7. Calculate real offsets per sample based on interleaved order
+	offsets := make([]int64, len(interleaved))
+	currentPos := mdatStartPos
+	for i, is := range interleaved {
+		offsets[i] = currentPos
+		currentPos += is.Sample.Size
+		_ = is // used below
+	}
+
+	// 8. Generate REAL moov with correct offsets
+	moov := makeMoovMultiTrackWithOffsets(tracks, interleaved, offsets, useCo64)
 	moovBytes := serializeAtom(moov)
 
-	// 3. Write 'moov'
+	// 9. Write moov
 	writer.WriteBytes(moovBytes)
 
-	// 4. Write 'mdat' Header
-	mdatDataSize := int64(0)
-	for _, t := range tracks {
-		for _, s := range t.Samples {
-			mdatDataSize += s.Size
-		}
-	}
-	writer.WriteUint32(uint32(mdatDataSize + 8)) // Atom Size
+	// 10. Write mdat header
+	writer.WriteUint32(uint32(mdatDataSize + 8))
 	writer.WriteTag("mdat")
 
-	// 5. Write 'mdat' Body
-	copyBuffer := make([]byte, 1024*1024) // 1MB buffer
+	// 11. Write mdat body (INTERLEAVED!)
+	copyBuffer := make([]byte, 1024*1024)
+	fmt.Printf("[Remuxer] Writing interleaved mdat (%d bytes)...\n", mdatDataSize)
 
-	fmt.Printf("[Remuxer] Writing mdat (Sequential strategy)...\n")
-
-	for _, t := range tracks {
-		fmt.Printf("  -> Writing Track %s (%d samples)\n", t.Type, len(t.Samples))
-		for _, s := range t.Samples {
-			// Seek to original sample
-			_, err := r.InputFile.Seek(s.Offset, 0)
-			if err != nil {
-				return err
-			}
-
-			// Copy s.Size
-			limitReader := io.LimitReader(r.InputFile, s.Size)
-			_, err = io.CopyBuffer(out, limitReader, copyBuffer)
-			if err != nil {
-				return err
-			}
+	for _, is := range interleaved {
+		_, err := r.InputFile.Seek(is.Sample.Offset, 0)
+		if err != nil {
+			return fmt.Errorf("seek error at offset %d: %w", is.Sample.Offset, err)
+		}
+		limitReader := io.LimitReader(r.InputFile, is.Sample.Size)
+		_, err = io.CopyBuffer(out, limitReader, copyBuffer)
+		if err != nil {
+			return fmt.Errorf("copy error: %w", err)
 		}
 	}
 
 	return nil
 }
 
-func makeMoovMultiTrack(tracks []Track, mdatOffsetBase int64) *SimpleAtom {
-	var traks []*SimpleAtom
+// buildInterleavedOrder creates a sorted list of all samples across all tracks,
+// ordered by presentation time in seconds. This ensures audio and video chunks
+// are naturally interleaved for streaming playback.
+func buildInterleavedOrder(tracks []Track) []InterleavedSample {
+	var all []InterleavedSample
 
-	currentOffset := mdatOffsetBase
-
-	for i, t := range tracks {
-		trak := makeTrakAtom(t, i+1, currentOffset)
-		traks = append(traks, trak)
-
-		// Advance offset by size of this track (Sequential)
-		trackSize := int64(0)
-		for _, s := range t.Samples {
-			trackSize += s.Size
+	for ti, t := range tracks {
+		ts := float64(t.Timescale)
+		if ts == 0 {
+			ts = 1000
 		}
-		currentOffset += trackSize
+		for si, s := range t.Samples {
+			timeSeconds := float64(s.Time) / ts
+			all = append(all, InterleavedSample{
+				TrackIndex:  ti,
+				SampleIndex: si,
+				TimeSeconds: timeSeconds,
+				Sample:      s,
+			})
+		}
+	}
+
+	// Sort by time, then by track index (video first if same time)
+	sort.SliceStable(all, func(i, j int) bool {
+		if all[i].TimeSeconds != all[j].TimeSeconds {
+			return all[i].TimeSeconds < all[j].TimeSeconds
+		}
+		return all[i].TrackIndex < all[j].TrackIndex
+	})
+
+	return all
+}
+
+// makeMoovMultiTrack creates a moov atom with dummy offset 0 (for size calculation)
+func makeMoovMultiTrack(tracks []Track, interleaved []InterleavedSample, baseOffset int64, useCo64 bool) *SimpleAtom {
+	dummyOffsets := make([]int64, len(interleaved))
+	for i := range dummyOffsets {
+		dummyOffsets[i] = baseOffset
+	}
+	return makeMoovMultiTrackWithOffsets(tracks, interleaved, dummyOffsets, useCo64)
+}
+
+// makeMoovMultiTrackWithOffsets creates moov with real offsets from interleaved order
+func makeMoovMultiTrackWithOffsets(tracks []Track, interleaved []InterleavedSample, offsets []int64, useCo64 bool) *SimpleAtom {
+	// Build per-track offset maps: trackIndex -> sampleIndex -> offset
+	trackOffsets := make(map[int]map[int]int64)
+	for i, is := range interleaved {
+		if trackOffsets[is.TrackIndex] == nil {
+			trackOffsets[is.TrackIndex] = make(map[int]int64)
+		}
+		trackOffsets[is.TrackIndex][is.SampleIndex] = offsets[i]
+	}
+
+	var traks []*SimpleAtom
+	for i, t := range tracks {
+		sampleOffsets := trackOffsets[i]
+		trak := makeTrakAtom(t, i+1, sampleOffsets, useCo64)
+		traks = append(traks, trak)
 	}
 
 	// mvhd
 	mvhdTimescale := uint32(1000)
 	maxDuration := int64(0)
 	for _, t := range tracks {
-		dur := convertTime(t.Duration, t.Timescale, mvhdTimescale)
-		if dur > maxDuration {
-			func(d int64) { maxDuration = d }(dur)
-		} // lambda fix? Just assign.
-		maxDuration = dur // Override logic: we want Max.
-		// NOTE: Loop logic above is broken, fixing:
-	}
-
-	// Fix max duration calc
-	maxDuration = 0
-	for _, t := range tracks {
-		// Calculate total duration of samples just to be safe?
-		// Or use t.Duration (whole track) scaled?
-		// Better: sum of samples duration
 		totalDur := int64(0)
 		for _, s := range t.Samples {
 			totalDur += s.Duration
@@ -130,21 +166,15 @@ func makeMoovMultiTrack(tracks []Track, mdatOffsetBase int64) *SimpleAtom {
 	}
 
 	mvhdData := new(ExcludeBuffer)
-	mvhdData.WriteUint32(0)
-	mvhdData.WriteUint32(0)
-	mvhdData.WriteUint32(0)
-	mvhdData.WriteUint32(mvhdTimescale) // Timescale
+	mvhdData.WriteUint32(0) // Version + Flags
+	mvhdData.WriteUint32(0) // Creation
+	mvhdData.WriteUint32(0) // Modification
+	mvhdData.WriteUint32(mvhdTimescale)
 	mvhdData.WriteUint32(uint32(maxDuration))
-	mvhdData.WriteUint32(0x00010000)      // Rate
-	mvhdData.WriteUint16(0x0100)          // Volume
+	mvhdData.WriteUint32(0x00010000)      // Rate (1.0)
+	mvhdData.WriteUint16(0x0100)          // Volume (1.0)
 	mvhdData.WriteBytes(make([]byte, 10)) // Reserved
-	// Matrix
-	matrix := []byte{
-		0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-		0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
-		0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0,
-	}
-	mvhdData.WriteBytes(matrix)
+	mvhdData.WriteBytes(identityMatrix())
 	mvhdData.WriteBytes(make([]byte, 24))         // Pre-defined
 	mvhdData.WriteUint32(uint32(len(tracks) + 1)) // Next Track ID
 
@@ -154,51 +184,72 @@ func makeMoovMultiTrack(tracks []Track, mdatOffsetBase int64) *SimpleAtom {
 	return &SimpleAtom{Type: "moov", Children: children}
 }
 
-func makeTrakAtom(t Track, trackID int, startOffset int64) *SimpleAtom {
-	// 1. stts
+func identityMatrix() []byte {
+	return []byte{
+		0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0,
+	}
+}
+
+func makeTrakAtom(t Track, trackID int, sampleOffsets map[int]int64, useCo64 bool) *SimpleAtom {
+	numSamples := len(t.Samples)
+
+	// 1. stts (Time-to-Sample)
 	sttsData := new(ExcludeBuffer)
-	sttsData.WriteUint32(0)
-	sttsData.WriteUint32(uint32(len(t.Samples)))
+	sttsData.WriteUint32(0) // Version + Flags
+	sttsData.WriteUint32(uint32(numSamples))
 	for _, s := range t.Samples {
 		sttsData.WriteUint32(1)
 		sttsData.WriteUint32(uint32(s.Duration))
 	}
 
-	// 2. stsz
+	// 2. stsz (Sample Sizes)
 	stszData := new(ExcludeBuffer)
-	stszData.WriteUint32(0)
-	stszData.WriteUint32(0)
-	stszData.WriteUint32(uint32(len(t.Samples)))
+	stszData.WriteUint32(0) // Version + Flags
+	stszData.WriteUint32(0) // Default size (0 = variable)
+	stszData.WriteUint32(uint32(numSamples))
 	for _, s := range t.Samples {
 		stszData.WriteUint32(uint32(s.Size))
 	}
 
-	// 3. stco (Offsets)
-	stcoData := new(ExcludeBuffer)
-	stcoData.WriteUint32(0)
-	stcoData.WriteUint32(uint32(len(t.Samples)))
-
-	curr := startOffset
-	for _, s := range t.Samples {
-		stcoData.WriteUint32(uint32(curr))
-		curr += s.Size
+	// 3. stco/co64 (Chunk Offsets) - Using interleaved offsets!
+	var chunkOffsetAtom *SimpleAtom
+	if useCo64 {
+		co64Data := new(ExcludeBuffer)
+		co64Data.WriteUint32(0)
+		co64Data.WriteUint32(uint32(numSamples))
+		for i := 0; i < numSamples; i++ {
+			off := sampleOffsets[i]
+			co64Data.WriteUint32(uint32(off >> 32)) // High 32
+			co64Data.WriteUint32(uint32(off))       // Low 32
+		}
+		chunkOffsetAtom = &SimpleAtom{Type: "co64", Data: co64Data.Bytes()}
+	} else {
+		stcoData := new(ExcludeBuffer)
+		stcoData.WriteUint32(0)
+		stcoData.WriteUint32(uint32(numSamples))
+		for i := 0; i < numSamples; i++ {
+			stcoData.WriteUint32(uint32(sampleOffsets[i]))
+		}
+		chunkOffsetAtom = &SimpleAtom{Type: "stco", Data: stcoData.Bytes()}
 	}
 
-	// 4. stsc
+	// 4. stsc (Sample-to-Chunk)
 	stscData := new(ExcludeBuffer)
-	stscData.WriteUint32(0)
-	stscData.WriteUint32(1)
+	stscData.WriteUint32(0) // Version + Flags
+	stscData.WriteUint32(1) // Entry count
 	stscData.WriteUint32(1) // First Chunk
-	stscData.WriteUint32(1) // Samples Per Chunk
-	stscData.WriteUint32(1) // ID
+	stscData.WriteUint32(1) // Samples Per Chunk (1:1 map for interleaving)
+	stscData.WriteUint32(1) // Sample Description ID
 
-	// 5. stss (Sync)
-	var stss *SimpleAtom
+	// 5. stss (Sync Samples / Keyframes) - Video only
+	var stssAtom *SimpleAtom
 	if t.Type == TrackTypeVideo {
 		var keyframes []int
 		for i, s := range t.Samples {
 			if s.IsKeyframe {
-				keyframes = append(keyframes, i+1)
+				keyframes = append(keyframes, i+1) // 1-based
 			}
 		}
 		stssBuf := new(ExcludeBuffer)
@@ -207,7 +258,20 @@ func makeTrakAtom(t Track, trackID int, startOffset int64) *SimpleAtom {
 		for _, kf := range keyframes {
 			stssBuf.WriteUint32(uint32(kf))
 		}
-		stss = &SimpleAtom{Type: "stss", Data: stssBuf.Bytes()}
+		stssAtom = &SimpleAtom{Type: "stss", Data: stssBuf.Bytes()}
+	}
+
+	// 6. ctts (Composition Time to Sample) - B-Frame support
+	var cttsAtom *SimpleAtom
+	if len(t.CTSOffsets) > 0 {
+		cttsBuf := new(ExcludeBuffer)
+		cttsBuf.WriteUint32(0) // Version 0 + Flags
+		cttsBuf.WriteUint32(uint32(len(t.CTSOffsets)))
+		for _, off := range t.CTSOffsets {
+			cttsBuf.WriteUint32(1) // Count = 1 per entry (expanded)
+			cttsBuf.WriteUint32(uint32(off))
+		}
+		cttsAtom = &SimpleAtom{Type: "ctts", Data: cttsBuf.Bytes()}
 	}
 
 	// Build stbl
@@ -215,11 +279,14 @@ func makeTrakAtom(t Track, trackID int, startOffset int64) *SimpleAtom {
 		{Type: "stsd", Data: t.Stsd},
 		{Type: "stts", Data: sttsData.Bytes()},
 		{Type: "stsz", Data: stszData.Bytes()},
-		{Type: "stco", Data: stcoData.Bytes()},
+		chunkOffsetAtom,
 		{Type: "stsc", Data: stscData.Bytes()},
 	}
-	if stss != nil {
-		stblChildren = append(stblChildren, stss)
+	if stssAtom != nil {
+		stblChildren = append(stblChildren, stssAtom)
+	}
+	if cttsAtom != nil {
+		stblChildren = append(stblChildren, cttsAtom)
 	}
 	stbl := &SimpleAtom{Type: "stbl", Children: stblChildren}
 
@@ -232,14 +299,14 @@ func makeTrakAtom(t Track, trackID int, startOffset int64) *SimpleAtom {
 		}
 		minfChildren = append(minfChildren, &SimpleAtom{Type: headerType, Data: t.MediaHeader})
 	}
-
 	dinf := &SimpleAtom{Type: "dinf", Children: []*SimpleAtom{
 		{Type: "dref", Data: []byte{
-			0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 12, 117, 114, 108, 32, 0, 0, 0, 1,
+			0, 0, 0, 0, // Version + Flags
+			0, 0, 0, 1, // Entry count
+			0, 0, 0, 12, 117, 114, 108, 32, 0, 0, 0, 1, // url entry
 		}},
 	}}
 	minfChildren = append(minfChildren, dinf, stbl)
-
 	minf := &SimpleAtom{Type: "minf", Children: minfChildren}
 
 	// mdia
@@ -249,13 +316,13 @@ func makeTrakAtom(t Track, trackID int, startOffset int64) *SimpleAtom {
 	}
 
 	mdhdData := new(ExcludeBuffer)
-	mdhdData.WriteUint32(0)
-	mdhdData.WriteUint32(0)
-	mdhdData.WriteUint32(0)
-	mdhdData.WriteUint32(t.Timescale)
+	mdhdData.WriteUint32(0)           // Version + Flags
+	mdhdData.WriteUint32(0)           // Creation
+	mdhdData.WriteUint32(0)           // Modification
+	mdhdData.WriteUint32(t.Timescale) // Timescale
 	mdhdData.WriteUint32(uint32(totalDur))
-	mdhdData.WriteUint16(0x55c4) // Lang
-	mdhdData.WriteUint16(0)
+	mdhdData.WriteUint16(0x55c4) // Language (undetermined)
+	mdhdData.WriteUint16(0)      // Quality
 
 	mdia := &SimpleAtom{Type: "mdia", Children: []*SimpleAtom{
 		{Type: "mdhd", Data: mdhdData.Bytes()},
@@ -265,28 +332,24 @@ func makeTrakAtom(t Track, trackID int, startOffset int64) *SimpleAtom {
 
 	// tkhd
 	tkhdData := new(ExcludeBuffer)
-	tkhdData.WriteUint32(0x00000001 + 2) // Enabled + InMovie
-	tkhdData.WriteUint32(0)
-	tkhdData.WriteUint32(0)
+	tkhdData.WriteUint32(0x00000003) // Flags: Enabled(1) + InMovie(2)
+	tkhdData.WriteUint32(0)          // Creation
+	tkhdData.WriteUint32(0)          // Modification
 	tkhdData.WriteUint32(uint32(trackID))
-	tkhdData.WriteUint32(0)
+	tkhdData.WriteUint32(0) // Reserved
 	durMvhd := convertTime(uint64(totalDur), t.Timescale, 1000)
 	tkhdData.WriteUint32(uint32(durMvhd))
-	tkhdData.WriteUint32(0)
-	tkhdData.WriteUint32(0)
+	tkhdData.WriteUint32(0) // Reserved
+	tkhdData.WriteUint32(0) // Reserved
 	tkhdData.WriteUint16(0) // Layer
-	tkhdData.WriteUint16(0) // Alt
-
+	tkhdData.WriteUint16(0) // Alternate Group
 	vol := uint16(0)
 	if t.Type == TrackTypeAudio {
 		vol = 0x0100
 	}
-	tkhdData.WriteUint16(vol)
-
-	tkhdData.WriteUint16(0)
-
-	matrix := []byte{0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0}
-	tkhdData.WriteBytes(matrix)
+	tkhdData.WriteUint16(vol) // Volume
+	tkhdData.WriteUint16(0)   // Reserved
+	tkhdData.WriteBytes(identityMatrix())
 	tkhdData.WriteUint32(t.Width)
 	tkhdData.WriteUint32(t.Height)
 
@@ -356,19 +419,12 @@ type SimpleAtom struct {
 }
 
 func serializeAtom(atom *SimpleAtom) []byte {
-	// Calculate size: 8 + len(Data) + sum(Children)
-	totalSize := 8 + len(atom.Data)
-	// for _, c := range atom.Children {
-	// Efficiency: In a real implementation we might pre-calculate
-	// }
-
-	// We need buffers for children
 	var childBytes []byte
 	for _, c := range atom.Children {
 		childBytes = append(childBytes, serializeAtom(c)...)
 	}
 
-	totalSize += len(childBytes)
+	totalSize := 8 + len(atom.Data) + len(childBytes)
 
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint32(buf[0:], uint32(totalSize))

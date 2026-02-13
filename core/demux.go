@@ -149,10 +149,6 @@ func (d *Demuxer) parseTrack(trak Atom) (*Track, error) {
 	}
 
 	// 5. stbl (Sample Table) - The Big One
-	// LocateTables searches recursive, so passing 'trak'/mdia works
-	// We reuse existing MapSamples logic but we need to ensure it searches within THIS track only.
-	// MapSamples takes an Atom.
-
 	samples, err := d.MapSamples(trak)
 	if err != nil {
 		return nil, fmt.Errorf("failed to map samples: %v", err)
@@ -160,15 +156,37 @@ func (d *Demuxer) parseTrack(trak Atom) (*Track, error) {
 	tr.Samples = samples
 
 	// 6. stsd (Sample Description) - for Codec Config
-	// Need to find stsd manually or via MapSamples side-effect?
-	// MapSamples uses LocateTables which finds stsd but doesn't return payload.
-	// Let's find it again.
 	stblAtom := findChildPath(*minfAtom, "stbl")
 	if stblAtom != nil {
 		stsdAtom := findChildPath(*stblAtom, "stsd")
 		if stsdAtom != nil {
 			tr.Stsd = readPayload(d.file, stsdAtom)
 		}
+
+		// 7. ctts (Composition Time to Sample) - B-Frame support
+		cttsAtom := findChildPath(*stblAtom, "ctts")
+		if cttsAtom != nil {
+			ctsEntries, parseErr := d.ParseCtts(*cttsAtom)
+			if parseErr == nil {
+				// Expand CTTS entries into per-sample offsets
+				var offsets []int32
+				for _, e := range ctsEntries {
+					for j := 0; j < int(e.Count); j++ {
+						offsets = append(offsets, e.Offset)
+					}
+				}
+				tr.CTSOffsets = offsets
+				fmt.Printf("[Demuxer] Track %s: Loaded %d ctts entries (%d per-sample offsets)\n", tr.Type, len(ctsEntries), len(offsets))
+			}
+		}
+	}
+
+	// 8. Codec Detection from stsd payload
+	if len(tr.Stsd) >= 12 {
+		// stsd: Ver(4) + EntryCount(4) + EntrySize(4) + CodecTag(4)
+		// The codec tag is at offset 12 within the stsd payload
+		tr.CodecTag = string(tr.Stsd[12:16])
+		fmt.Printf("[Demuxer] Track %s: Codec Tag = '%s'\n", tr.Type, tr.CodecTag)
 	}
 
 	return tr, nil
@@ -310,6 +328,49 @@ func (d *Demuxer) ParseStsc(atom Atom) ([]struct{ FirstChunk, SamplesPerChunk, S
 	for i := 0; i < int(entryCount); i++ {
 		if err := binary.Read(d.file, binary.BigEndian, &entries[i]); err != nil {
 			return nil, err
+		}
+	}
+	return entries, nil
+}
+
+// ParseCtts parses Composition Time to Sample box (B-Frame ordering)
+func (d *Demuxer) ParseCtts(atom Atom) ([]struct {
+	Count  uint32
+	Offset int32
+}, error) {
+	if _, err := d.file.Seek(atom.Offset+8, io.SeekStart); err != nil {
+		return nil, err
+	}
+	version, _, err := readFullBoxHeader(d.file)
+	if err != nil {
+		return nil, err
+	}
+
+	var entryCount uint32
+	if err := binary.Read(d.file, binary.BigEndian, &entryCount); err != nil {
+		return nil, err
+	}
+
+	entries := make([]struct {
+		Count  uint32
+		Offset int32
+	}, entryCount)
+	for i := 0; i < int(entryCount); i++ {
+		if err := binary.Read(d.file, binary.BigEndian, &entries[i].Count); err != nil {
+			return nil, err
+		}
+		if version == 0 {
+			// Version 0: unsigned 32-bit offset
+			var uoff uint32
+			if err := binary.Read(d.file, binary.BigEndian, &uoff); err != nil {
+				return nil, err
+			}
+			entries[i].Offset = int32(uoff)
+		} else {
+			// Version 1: signed 32-bit offset
+			if err := binary.Read(d.file, binary.BigEndian, &entries[i].Offset); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return entries, nil
