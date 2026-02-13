@@ -1,0 +1,22 @@
+# Binaries
+cromedia
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Video Files (Test Assets)
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.bin
+
+# Logs and Reports
+report_*.txt
+*.log
+
+# Editor/OS
+.vscode/
+.idea/
+.DS_Store
