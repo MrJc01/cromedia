@@ -143,11 +143,6 @@ func ResampleSinc(frame *AudioFrame, targetRate int) *AudioFrame {
 
 // --- Simulators for external CGO wrapper codecs (AAC, MP3, Vorbis, Opus, FLAC) ---
 
-type SimMP3Decoder struct{}
-func (d *SimMP3Decoder) Decode(pkt *Packet) (*AudioFrame, error) {
-	return &AudioFrame{Channels: 2, SampleRate: 44100, Data: make([]float32, 1152)}, nil
-}
-func (d *SimMP3Decoder) Close() error { return nil }
 
 type SimMP3Encoder struct{}
 func (e *SimMP3Encoder) Encode(frame *AudioFrame) (*Packet, error) {

@@ -2,17 +2,11 @@
 
 package core
 
-type SimH264Decoder struct{}
 
-func (d *SimH264Decoder) Decode(pkt *Packet) (*VideoFrame, error) {
-	return &VideoFrame{Width: 1920, Height: 1080, Format: PixelFormatYUV420P, Data: make([]byte, 1920*1080*3/2)}, nil
+type SimH264Encoder struct {
+	KeyintMax int
+	fps       int
 }
-
-func (d *SimH264Decoder) Close() error {
-	return nil
-}
-
-type SimH264Encoder struct{}
 
 func (e *SimH264Encoder) Encode(frame *VideoFrame) (*Packet, error) {
 	if frame == nil {
@@ -22,5 +16,23 @@ func (e *SimH264Encoder) Encode(frame *VideoFrame) (*Packet, error) {
 }
 
 func (e *SimH264Encoder) Close() error {
+	return nil
+}
+
+type SimH264Decoder struct{}
+
+func (d *SimH264Decoder) Decode(pkt *Packet) (*VideoFrame, error) {
+	if pkt == nil {
+		return nil, nil
+	}
+	return &VideoFrame{
+		Width:  1920,
+		Height: 1080,
+		Format: PixelFormatYUV420P,
+		Data:   make([]byte, 1920*1080*3/2),
+	}, nil
+}
+
+func (d *SimH264Decoder) Close() error {
 	return nil
 }

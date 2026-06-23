@@ -72,9 +72,9 @@ go build -tags "legacy" -ldflags="-s -w" -o cromedia main.go
 ```
 
 ### 2. Compilação com CGO Real (H.264 & AAC de Alta Performance)
-Por padrão, o CroMedia utiliza simuladores/stubs seguros. Para habilitar os motores reais integrados via CGO ligando-se às bibliotecas `libx264` e `libfdk-aac`, instale as dependências de cabeçalhos C em seu sistema Linux:
+Por padrão, o CroMedia utiliza simuladores/stubs seguros. Para habilitar os motores reais integrados via CGO ligando-se às bibliotecas `libx264`, `libfdk-aac` e `openh264`, instale as dependências de cabeçalhos C em seu sistema Linux:
 ```bash
-sudo apt-get update && sudo apt-get install -y libx264-dev libfdk-aac-dev
+sudo apt-get update && sudo apt-get install -y libx264-dev libfdk-aac-dev libopenh264-dev
 ```
 Em seguida, compile o binário ativando a tag de build `cgo_media`:
 ```bash
@@ -153,6 +153,22 @@ import "cromedia/core/filters/audio"
 
 // Soma voz e música com atenuação da música e limitação de pico
 mixedFrame := audio.MixAudioFrames(voiceFrame, musicFrame, 1.0, 0.3, true)
+```
+
+### 5. Otimizador de Vídeo Nativo (Resizing e Keyframes)
+Decodifica o vídeo original (H.264), redimensiona para 1920x1080 via `ScaleFilter`, re-encoda forçando keyframes (`keyint=1`) usando `SimH264Encoder`, e reconstrói o MP4 preservando o áudio por stream copy:
+```go
+import "cromedia/core/pipeline"
+
+err := pipeline.OptimizeVideoAsset("input.mp4", "output.mp4")
+```
+
+### 6. Mixagem de Trilha Sonora Nativa (Voz + Música)
+Extrai o áudio AAC de um MP4 e uma trilha sonora MP3, mixa ambos via `AudioMixer` (com volume de 0.3 na música e soft limiter), codifica o resultado em AAC e gera o MP4 final aplicando stream-copy no vídeo original:
+```go
+import "cromedia/core/pipeline"
+
+err := pipeline.MixAudioTracks("video.mp4", "trilha.mp3", "resultado.mp4")
 ```
 
 ---

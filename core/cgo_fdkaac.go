@@ -6,7 +6,9 @@ package core
 #cgo pkg-config: fdk-aac
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <fdk-aac/aacenc_lib.h>
+#include <fdk-aac/aacdecoder_lib.h>
 
 typedef struct {
     HANDLE_AACENCODER handle;
@@ -112,21 +114,126 @@ static inline void cgo_aac_close(cgo_aac_t *ctx) {
     aacEncClose(&ctx->handle);
     free(ctx);
 }
+
+// === DECODER C WRAPPER ===
+
+static inline int cgo_aac_dec_init(HANDLE_AACDECODER handle, unsigned char *config, int config_len) {
+    unsigned char *config_array[1] = { config };
+    unsigned int config_len_array[1] = { config_len };
+    return (int)aacDecoder_ConfigRaw(handle, config_array, config_len_array);
+}
+
+static inline int cgo_aac_dec_decode(HANDLE_AACDECODER handle, unsigned char *pkt_data, int pkt_len, int16_t *pcm_out, int max_pcm_samples) {
+    UINT bytes_valid = pkt_len;
+    UCHAR *pkt_arr[1] = { pkt_data };
+    UINT pkt_len_arr[1] = { pkt_len };
+    
+    AAC_DECODER_ERROR err = aacDecoder_Fill(handle, pkt_arr, pkt_len_arr, &bytes_valid);
+    if (err != AAC_DEC_OK) {
+        return -((int)err);
+    }
+    
+    err = aacDecoder_DecodeFrame(handle, (INT_PCM*)pcm_out, max_pcm_samples, 0);
+    if (err == AAC_DEC_NOT_ENOUGH_BITS) {
+        return 0;
+    }
+    if (err != AAC_DEC_OK) {
+        return -((int)err);
+    }
+    
+    CStreamInfo *info = aacDecoder_GetStreamInfo(handle);
+    if (!info) return -100;
+    
+    return info->frameSize * info->numChannels;
+}
+
+static inline int cgo_aac_dec_samplerate(HANDLE_AACDECODER handle) {
+    CStreamInfo *info = aacDecoder_GetStreamInfo(handle);
+    return info ? info->sampleRate : 0;
+}
+
+static inline int cgo_aac_dec_channels(HANDLE_AACDECODER handle) {
+    CStreamInfo *info = aacDecoder_GetStreamInfo(handle);
+    return info ? info->numChannels : 0;
+}
 */
 import "C"
 
 import (
 	"errors"
+	"fmt"
 	"unsafe"
 )
 
-type SimAACDecoder struct{}
+type SimAACDecoder struct {
+	handle C.HANDLE_AACDECODER
+	config []byte
+	pcmBuf []int16
+}
+
+func (d *SimAACDecoder) Init(config []byte) error {
+	d.config = config
+	return nil
+}
 
 func (d *SimAACDecoder) Decode(pkt *Packet) (*AudioFrame, error) {
-	return &AudioFrame{Channels: 2, SampleRate: 44100, Data: make([]float32, 1024)}, nil
+	if pkt == nil || len(pkt.Data) == 0 {
+		return nil, nil
+	}
+
+	if d.handle == nil {
+		d.handle = C.aacDecoder_Open(C.TT_MP4_RAW, 1)
+		if d.handle == nil {
+			return nil, errors.New("failed to open aac decoder")
+		}
+		if len(d.config) > 0 {
+			ret := C.cgo_aac_dec_init(d.handle, (*C.uchar)(unsafe.Pointer(&d.config[0])), C.int(len(d.config)))
+			if ret != 0 {
+				return nil, fmt.Errorf("failed to init aac decoder with config: %d", ret)
+			}
+		}
+	}
+
+	maxSamples := 8192
+	if len(d.pcmBuf) < maxSamples {
+		d.pcmBuf = make([]int16, maxSamples)
+	}
+
+	size := C.cgo_aac_dec_decode(
+		d.handle,
+		(*C.uchar)(unsafe.Pointer(&pkt.Data[0])),
+		C.int(len(pkt.Data)),
+		(*C.int16_t)(unsafe.Pointer(&d.pcmBuf[0])),
+		C.int(maxSamples),
+	)
+
+	if size < 0 {
+		return nil, fmt.Errorf("aac decoding error: %d", size)
+	}
+	if size == 0 {
+		return nil, nil // Need more bits
+	}
+
+	sr := int(C.cgo_aac_dec_samplerate(d.handle))
+	ch := int(C.cgo_aac_dec_channels(d.handle))
+
+	floats := make([]float32, size)
+	for i := 0; i < int(size); i++ {
+		floats[i] = float32(d.pcmBuf[i]) / 32768.0
+	}
+
+	return &AudioFrame{
+		Channels:   ch,
+		SampleRate: sr,
+		Data:       floats,
+	}, nil
 }
 
 func (d *SimAACDecoder) Close() error {
+	if d.handle != nil {
+		C.aacDecoder_Close(d.handle)
+		d.handle = nil
+	}
 	return nil
 }
 

@@ -15,7 +15,7 @@ typedef struct {
     x264_picture_t pic_out;
 } cgo_x264_t;
 
-static inline cgo_x264_t* cgo_x264_open(int width, int height, int fps, int bitrate_kbps, const char *preset, const char *tune) {
+static inline cgo_x264_t* cgo_x264_open(int width, int height, int fps, int bitrate_kbps, const char *preset, const char *tune, int keyint_max) {
     cgo_x264_t *ctx = (cgo_x264_t*)malloc(sizeof(cgo_x264_t));
     if (!ctx) return NULL;
 
@@ -26,7 +26,7 @@ static inline cgo_x264_t* cgo_x264_open(int width, int height, int fps, int bitr
     param.i_height = height;
     param.i_fps_num = fps;
     param.i_fps_den = 1;
-    param.i_keyint_max = fps * 2;
+    param.i_keyint_max = keyint_max > 0 ? keyint_max : fps * 2;
     param.i_csp = X264_CSP_I420;
 
     if (bitrate_kbps > 0) {
@@ -134,16 +134,6 @@ import (
 	"unsafe"
 )
 
-type SimH264Decoder struct{}
-
-func (d *SimH264Decoder) Decode(pkt *Packet) (*VideoFrame, error) {
-	return &VideoFrame{Width: 1920, Height: 1080, Format: PixelFormatYUV420P, Data: make([]byte, 1920*1080*3/2)}, nil
-}
-
-func (d *SimH264Decoder) Close() error {
-	return nil
-}
-
 type SimH264Encoder struct {
 	ctx       *C.cgo_x264_t
 	width     int
@@ -152,6 +142,7 @@ type SimH264Encoder struct {
 	pts       int64
 	batchProc *CGOBatchProcessor
 	outChan   chan *Packet
+	KeyintMax int
 }
 
 func (enc *SimH264Encoder) lazyInit(frame *VideoFrame) error {
@@ -177,7 +168,7 @@ func (enc *SimH264Encoder) lazyInit(frame *VideoFrame) error {
 	defer C.free(unsafe.Pointer(preset))
 	defer C.free(unsafe.Pointer(tune))
 
-	enc.ctx = C.cgo_x264_open(C.int(w), C.int(h), C.int(enc.fps), 0, preset, tune)
+	enc.ctx = C.cgo_x264_open(C.int(w), C.int(h), C.int(enc.fps), 0, preset, tune, C.int(enc.KeyintMax))
 	if enc.ctx == nil {
 		return errors.New("failed to initialize x264 encoder in lazy init")
 	}
