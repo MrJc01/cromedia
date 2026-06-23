@@ -71,7 +71,17 @@ Caso queira incluir codecs e containers legados compilados:
 go build -tags "legacy" -ldflags="-s -w" -o cromedia main.go
 ```
 
-### 2. Comandos CLI
+### 2. Compilação com CGO Real (H.264 & AAC de Alta Performance)
+Por padrão, o CroMedia utiliza simuladores/stubs seguros. Para habilitar os motores reais integrados via CGO ligando-se às bibliotecas `libx264` e `libfdk-aac`, instale as dependências de cabeçalhos C em seu sistema Linux:
+```bash
+sudo apt-get update && sudo apt-get install -y libx264-dev libfdk-aac-dev
+```
+Em seguida, compile o binário ativando a tag de build `cgo_media`:
+```bash
+go build -tags cgo_media -ldflags="-s -w" -o cromedia main.go
+```
+
+### 3. Comandos CLI
 
 #### Inspecionar Árvore de Átomos
 ```bash
@@ -100,6 +110,49 @@ go build -tags "legacy" -ldflags="-s -w" -o cromedia main.go
 #### Geração de Autocompletar Shell (Bash)
 ```bash
 source <(./cromedia autocomplete)
+```
+
+---
+
+## 🧩 Novas APIs de Media Nativa (Substituição do FFmpeg)
+
+O CroMedia agora oferece 4 novas frentes para substituir integralmente chamadas CLI do FFmpeg de dentro do microsserviço `crom-video-gen`:
+
+### 1. Extração de Duração via FastProbe (mvhd parser)
+Calcula e retorna a duração exata do arquivo em milissegundos decodificando apenas a estrutura de átomos (mvhd timescale/duration):
+```go
+import "cromedia/core"
+
+file, _ := os.Open("video.mp4")
+defer file.Close()
+
+durationMs, err := core.GetMP4Duration(file)
+```
+
+### 2. Concatenação Nativa de MP4 (Stream Copy Puro)
+Une múltiplos arquivos MP4 compatíveis reordenando e reajustando seus timestamps PTS/DTS de emenda de forma imediata (zero re-encoding):
+```go
+import "cromedia/core/mux"
+
+err := mux.ConcatMP4Files("resultado.mp4", []string{"input1.mp4", "input2.mp4", "input3.mp4"})
+```
+
+### 3. API In-Memory (Substituindo o image2pipe)
+Alimenta o codificador em tempo real a partir de um channel Go de frames brutos (`image.Image` ou JPEGs em RAM `[]byte`), empacotando e multiplexando os pacotes finais em um MP4:
+```go
+import "cromedia/core/pipeline"
+
+// frames := make(chan interface{})
+err := pipeline.RenderScenePipeline("output.mp4", 1920, 1080, 30, videoEncoder, frames, audioTrack, audioFile)
+```
+
+### 4. AudioMixer Nativo (amix em Go Puro)
+Soma múltiplos fluxos PCM sample-a-sample com ganho independente por trilha e limitador soft limiter para atenuar clippings harmônicos:
+```go
+import "cromedia/core/filters/audio"
+
+// Soma voz e música com atenuação da música e limitação de pico
+mixedFrame := audio.MixAudioFrames(voiceFrame, musicFrame, 1.0, 0.3, true)
 ```
 
 ---

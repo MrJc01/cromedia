@@ -124,3 +124,26 @@ cat ../resultados/panoptico_cromedia.json
 cat ../resultados/panoptico_ffmpeg.json
 ```
 A tabela geral comparativa dos 16 projetos práticos e análise crítica está localizada em [relatorio_comparativo.md](file:///home/j/Documentos/GitHub/cromedia/projetos_testes/relatorio_comparativo.md).
+
+---
+
+## 🏗️ Compilação CGO e Configuração de Desenvolvimento
+
+Caso esteja desenvolvendo os wrappers CGO de produção (`cgo_x264.go` e `cgo_fdkaac.go`), você deve utilizar a tag de compilação `cgo_media`.
+
+### Configuração de Dependências
+Instale as bibliotecas de desenvolvimento no sistema anfitrião:
+```bash
+sudo apt-get update
+sudo apt-get install -y libx264-dev libfdk-aac-dev
+```
+
+### Comandos de Compilação & Testes com CGO
+```bash
+# Executar todos os testes incluindo os wrappers CGO
+go test -tags cgo_media -v ./core/...
+
+# Compilar o CLI completo com aceleração CGO e debug de performance
+go build -tags cgo_media -ldflags="-s -w" -o cromedia main.go
+```
+
