@@ -49,6 +49,7 @@ int NvEncDestroyEncoder(void* encoder) {
 import "C"
 import (
 	"cromedia/core"
+	"cromedia/core/pipeline"
 	"fmt"
 	"unsafe"
 )
@@ -58,7 +59,7 @@ type NvenCTranscoder struct {
 }
 
 // NewNVENCTranscoder factory for the real (simulated) implementation
-func NewNVENCTranscoder() (core.Transcoder, error) {
+func NewNVENCTranscoder() (pipeline.Transcoder, error) {
 	var handle unsafe.Pointer
 
 	// Open Session
@@ -81,7 +82,7 @@ func NewNVENCTranscoder() (core.Transcoder, error) {
 	return &NvenCTranscoder{handle: handle}, nil
 }
 
-func (n *NvenCTranscoder) Transcode(gop *core.GOP) ([]byte, error) {
+func (n *NvenCTranscoder) Transcode(gop *pipeline.GOP) ([]byte, error) {
 	// Simulate encoding needed for this GOP
 	// Ideally we loop over samples, decode them (not implemented) and encode.
 	// Here we just call the Encode API mock for each sample.

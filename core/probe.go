@@ -18,6 +18,9 @@ var ContainerAtoms = map[string]bool{
 	"mvex": true,
 	"edts": true,
 	"udta": true,
+	"moof": true,
+	"traf": true,
+	"meta": true,
 }
 
 // Atom represents an MP4 box/atom
@@ -84,6 +87,10 @@ func parseAtoms(file *os.File, start, end int64) ([]Atom, error) {
 			size = end - offset
 		}
 
+		if offset+size > end {
+			size = end - offset
+		}
+
 		atom := Atom{
 			Offset: offset,
 			Size:   size,
@@ -99,6 +106,9 @@ func parseAtoms(file *os.File, start, end int64) ([]Atom, error) {
 			headerSize := int64(8)
 			if size == 1 {
 				headerSize = 16
+			}
+			if typ == "meta" {
+				headerSize += 4
 			}
 
 			children, err := parseAtoms(file, offset+headerSize, offset+size)

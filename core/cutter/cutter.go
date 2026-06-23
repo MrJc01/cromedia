@@ -1,24 +1,27 @@
-package core
+package cutter
 
 import (
 	"fmt"
 	"math"
+	"sort"
 	"time"
+
+	"cromedia/core"
 )
 
 // MultiTrackCutter handles slicing multiple tracks
 type MultiTrackCutter struct {
-	Tracks []Track
+	Tracks []core.Track
 }
 
-func NewMultiTrackCutter(tracks []Track) *MultiTrackCutter {
+func NewMultiTrackCutter(tracks []core.Track) *MultiTrackCutter {
 	return &MultiTrackCutter{Tracks: tracks}
 }
 
 // CutWithReport slices all tracks and returns cut reports with keyframe delta info
-func (c *MultiTrackCutter) CutWithReport(startTime, endTime time.Duration) ([]Track, []CutReport, error) {
-	var cutTracks []Track
-	var reports []CutReport
+func (c *MultiTrackCutter) CutWithReport(startTime, endTime time.Duration) ([]core.Track, []core.CutReport, error) {
+	var cutTracks []core.Track
+	var reports []core.CutReport
 
 	for _, track := range c.Tracks {
 		timescale := int64(track.Timescale)
@@ -29,32 +32,27 @@ func (c *MultiTrackCutter) CutWithReport(startTime, endTime time.Duration) ([]Tr
 		startUnits := int64(startTime.Seconds() * float64(timescale))
 		endUnits := int64(endTime.Seconds() * float64(timescale))
 
-		startIdx := -1
-		endIdx := -1
+		// Find cut points using optimized O(log N) binary search
+		firstGeStart := sort.Search(len(track.Samples), func(i int) bool {
+			return track.Samples[i].Time >= startUnits
+		})
 
-		// Find cut points
-		for i, s := range track.Samples {
-			if s.Time <= startUnits {
-				if track.Type == TrackTypeVideo {
-					if s.IsKeyframe {
-						startIdx = i
-					}
-				} else {
-					startIdx = i
-				}
-			}
+		if firstGeStart >= len(track.Samples) {
+			firstGeStart = len(track.Samples) - 1
+		}
 
-			if s.Time >= endUnits {
-				endIdx = i
-				break
+		startIdx := firstGeStart
+		if track.Type == core.TrackTypeVideo {
+			// Walk back to find the closest keyframe
+			for startIdx > 0 && !track.Samples[startIdx].IsKeyframe {
+				startIdx--
 			}
 		}
 
-		// Fallbacks
-		if startIdx == -1 {
-			startIdx = 0
-		}
-		if endIdx == -1 {
+		endIdx := sort.Search(len(track.Samples), func(i int) bool {
+			return track.Samples[i].Time >= endUnits
+		})
+		if endIdx >= len(track.Samples) {
 			endIdx = len(track.Samples) - 1
 		}
 
@@ -75,7 +73,7 @@ func (c *MultiTrackCutter) CutWithReport(startTime, endTime time.Duration) ([]Tr
 		deltaStartMs := (actualStartSec - requestedStartSec) * 1000.0
 		deltaEndMs := (actualEndSec - requestedEndSec) * 1000.0
 
-		report := CutReport{
+		report := core.CutReport{
 			TrackType:       track.Type,
 			RequestedStart:  requestedStartSec,
 			ActualStart:     actualStartSec,
@@ -105,7 +103,7 @@ func (c *MultiTrackCutter) CutWithReport(startTime, endTime time.Duration) ([]Tr
 		cutTracks = append(cutTracks, cutTrack)
 
 		// Print report with keyframe warning
-		if track.Type == TrackTypeVideo && math.Abs(deltaStartMs) > 1.0 {
+		if track.Type == core.TrackTypeVideo && math.Abs(deltaStartMs) > 1.0 {
 			fmt.Printf("[Cutter] ⚠️  Track %s: Corte ajustado para keyframe!\n", track.Type)
 			fmt.Printf("         Solicitado: %.3fs → Real: %.3fs (Δ %.1fms)\n", requestedStartSec, actualStartSec, deltaStartMs)
 		}
@@ -118,7 +116,7 @@ func (c *MultiTrackCutter) CutWithReport(startTime, endTime time.Duration) ([]Tr
 }
 
 // Cut is the backward-compatible version without reports
-func (c *MultiTrackCutter) Cut(startTime, endTime time.Duration) ([]Track, error) {
+func (c *MultiTrackCutter) Cut(startTime, endTime time.Duration) ([]core.Track, error) {
 	tracks, _, err := c.CutWithReport(startTime, endTime)
 	return tracks, err
 }

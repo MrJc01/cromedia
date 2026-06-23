@@ -10,6 +10,22 @@ const (
 	TrackTypeMeta  TrackType = "meta"
 )
 
+// Sample represents a single video frame/audio sample
+type Sample struct {
+	ID         int
+	IsKeyframe bool
+	Offset     int64
+	Size       int64
+	Time       int64 // Decoding time
+	Duration   int64
+}
+
+// KeyframeInfo holds metadata for cutting
+type KeyframeInfo struct {
+	Timestamp int64 // Duration units (timescale)
+	Offset    int64 // Byte offset in file
+}
+
 // EditListEntry represents a single entry in an Edit List (elst)
 type EditListEntry struct {
 	SegmentDuration uint64 // Duration of this edit in movie timescale
@@ -52,6 +68,21 @@ type Track struct {
 	// Positive = skip N units at start of media. Used for A/V sync.
 	EditList        []EditListEntry
 	MediaTimeOffset int64 // Computed from first edit: the initial presentation offset
+
+	// General Metadata
+	Metadata map[string]string // Key-value tags like "title", "artist", etc.
+
+	// Chapters list
+	Chapters []Chapter
+
+	// Codec Private Data (SPS/PPS/VPS/av1C configuration)
+	CodecPrivate []byte
+}
+
+// Chapter represents a chapter point in a media track/file.
+type Chapter struct {
+	StartTime int64  // in timescale units
+	Title     string
 }
 
 // InterleavedSample is used for interleaved mdat writing
