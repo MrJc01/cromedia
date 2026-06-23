@@ -1,0 +1,21 @@
+{
+  "audio_frames_processed": 80,
+  "avg_frame_us": 7682,
+  "cold_start_ms": 0.000912,
+  "engine": "CroMedia (Go-native)",
+  "filters_applied_audio": [
+    "PredictiveGainNormalizer"
+  ],
+  "filters_applied_video": [
+    "ColorFilter",
+    "OverlayFilter",
+    "DrawTextFilter"
+  ],
+  "peak_memory_mb": 638.6446990966797,
+  "pool_gets": 60,
+  "pool_puts": 60,
+  "processing_time_ms": 460,
+  "test": "flash-transcoder",
+  "total_time_with_cold_ms": 461,
+  "video_frames_processed": 60
+}

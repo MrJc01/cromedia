@@ -1,0 +1,13 @@
+{
+  "avg_frame_us": 111,
+  "cameras_active": 100,
+  "detections_count": 949,
+  "engine": "CroMedia (Go-native)",
+  "frames_per_camera": 20,
+  "peak_memory_mb": 395.65865325927734,
+  "pool_gets": 2000,
+  "pool_puts": 2000,
+  "processing_time_ms": 222,
+  "test": "panoptico",
+  "total_frames": 2000
+}

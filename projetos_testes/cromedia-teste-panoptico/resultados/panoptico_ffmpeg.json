@@ -1,0 +1,12 @@
+{
+  "avg_process_boot_ms": 45,
+  "cameras_simulated": 100,
+  "engine": "FFmpeg (Process-based)",
+  "ffmpeg_binary_detected": false,
+  "measured_batch_size": 5,
+  "peak_memory_mb": 3850,
+  "process_footprint_mb": 38.5,
+  "processing_time_ms": 13125,
+  "real_elapsed_test_time": 0,
+  "test": "panoptico"
+}

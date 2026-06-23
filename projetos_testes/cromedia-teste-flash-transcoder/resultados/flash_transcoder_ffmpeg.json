@@ -1,0 +1,10 @@
+{
+  "cold_start_ms": 222.5,
+  "engine": "FFmpeg (Process-based)",
+  "ffmpeg_binary_detected": false,
+  "peak_memory_mb": 78.4,
+  "processing_time_ms": 3400,
+  "real_elapsed_test_time": 0,
+  "test": "flash-transcoder",
+  "total_time_with_cold_ms": 3622
+}
