@@ -126,3 +126,84 @@ func parseAtoms(file *os.File, start, end int64) ([]Atom, error) {
 
 	return atoms, nil
 }
+
+// FindAtom recursively searches for an atom of the specified type in the atom slice
+func FindAtom(atoms []Atom, typ string) *Atom {
+	for i := range atoms {
+		if atoms[i].Type == typ {
+			return &atoms[i]
+		}
+		if len(atoms[i].Children) > 0 {
+			res := FindAtom(atoms[i].Children, typ)
+			if res != nil {
+				return res
+			}
+		}
+	}
+	return nil
+}
+
+// ReadMvhd reads timescale and duration from an mvhd atom
+func ReadMvhd(file *os.File, mvhd *Atom) (timescale uint32, duration uint64, err error) {
+	headerSize := int64(8)
+	if mvhd.Size == 1 {
+		headerSize = 16
+	}
+
+	payloadOffset := mvhd.Offset + headerSize
+	_, err = file.Seek(payloadOffset, io.SeekStart)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	// We need up to 32 bytes of the payload for version 1
+	buf := make([]byte, 32)
+	n, err := io.ReadFull(file, buf)
+	if err != nil && err != io.ErrUnexpectedEOF {
+		return 0, 0, err
+	}
+	if n < 20 {
+		return 0, 0, fmt.Errorf("mvhd atom payload too short: %d bytes", n)
+	}
+
+	version := buf[0]
+	if version == 0 {
+		timescale = binary.BigEndian.Uint32(buf[12:16])
+		duration = uint64(binary.BigEndian.Uint32(buf[16:20]))
+	} else if version == 1 {
+		if n < 32 {
+			return 0, 0, fmt.Errorf("mvhd version 1 atom payload too short: %d bytes", n)
+		}
+		timescale = binary.BigEndian.Uint32(buf[20:24])
+		duration = binary.BigEndian.Uint64(buf[24:32])
+	} else {
+		return 0, 0, fmt.Errorf("unsupported mvhd version: %d", version)
+	}
+
+	return timescale, duration, nil
+}
+
+// GetMP4Duration calculates and returns the exact duration of the file in milliseconds
+func GetMP4Duration(file *os.File) (int64, error) {
+	atoms, err := FastProbe(file)
+	if err != nil {
+		return 0, err
+	}
+
+	mvhd := FindAtom(atoms, "mvhd")
+	if mvhd == nil {
+		return 0, fmt.Errorf("mvhd atom not found")
+	}
+
+	timescale, duration, err := ReadMvhd(file, mvhd)
+	if err != nil {
+		return 0, err
+	}
+
+	if timescale == 0 {
+		return 0, fmt.Errorf("invalid timescale (0)")
+	}
+
+	durationMs := (duration * 1000) / uint64(timescale)
+	return int64(durationMs), nil
+}

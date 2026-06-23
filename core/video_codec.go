@@ -105,18 +105,6 @@ func (e *MJPEGEncoder) Close() error { return nil }
 
 // --- Simulated CGO Wrappers (libopenh264, x264, x265, libvpx, libdav1d, libaom, ProRes) ---
 
-type SimH264Decoder struct{}
-func (d *SimH264Decoder) Decode(pkt *Packet) (*VideoFrame, error) {
-	return &VideoFrame{Width: 1920, Height: 1080, Format: PixelFormatYUV420P, Data: make([]byte, 1920*1080*3/2)}, nil
-}
-func (d *SimH264Decoder) Close() error { return nil }
-
-type SimH264Encoder struct{}
-func (e *SimH264Encoder) Encode(frame *VideoFrame) (*Packet, error) {
-	return &Packet{ID: NewPacketID(), Data: make([]byte, 1024), IsKeyframe: true}, nil
-}
-func (e *SimH264Encoder) Close() error { return nil }
-
 // DPBManager simulates a Decoded Picture Buffer for H.264/H.265 frame reference management.
 type DPBManager struct {
 	mu     sync.Mutex

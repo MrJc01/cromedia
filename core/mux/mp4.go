@@ -35,7 +35,7 @@ func (m *MP4Muxer) WriteHeader(tracks []core.Track) error {
 	m.writer.WriteTag("mp41")
 
 	// 2. Build Interleaved Sample Order
-	interleaved := buildInterleavedOrder(tracks)
+	interleaved := BuildInterleavedOrder(tracks)
 
 	// 3. Calculate mdat size
 	mdatDataSize := int64(0)
@@ -99,7 +99,7 @@ func (m *MP4Muxer) WriteMultiTrackFile(tracks []core.Track, inputFile *os.File) 
 		return err
 	}
 
-	interleaved := buildInterleavedOrder(tracks)
+	interleaved := BuildInterleavedOrder(tracks)
 	
 	// Pre-allocate a 64KB buffer from the pool to stream data block-by-block
 	bufSize := 65536
@@ -136,7 +136,7 @@ func (m *MP4Muxer) WriteMultiTrackFile(tracks []core.Track, inputFile *os.File) 
 	return m.WriteTrailer()
 }
 
-func buildInterleavedOrder(tracks []core.Track) []core.InterleavedSample {
+func BuildInterleavedOrder(tracks []core.Track) []core.InterleavedSample {
 	var all []core.InterleavedSample
 
 	for ti, t := range tracks {
