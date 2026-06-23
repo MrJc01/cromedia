@@ -1,8 +1,13 @@
 package demux
 
 import (
+	"os"
+
 	"cromedia/core"
 )
+
+// PluginDemuxerFinder is a hook populated by the plugins package to avoid circular imports.
+var PluginDemuxerFinder func(format string, file *os.File) (Demuxer, error)
 
 // Demuxer defines the generic interface for container parsers (e.g. MP4, WebM, MPEG-TS).
 type Demuxer interface {
@@ -14,3 +19,4 @@ type Demuxer interface {
 	// Close releases system resources associated with the demuxer.
 	Close() error
 }
+

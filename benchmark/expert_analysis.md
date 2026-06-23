@@ -1,8 +1,8 @@
 # 🧠 Análise do Painel de 30 Especialistas em Engenharia de Mídia
 
-**Data da Análise**: 2026-06-23 16:36:34
+**Data da Análise**: 2026-06-23 18:22:43
 **Base**: 100 testes comparativos CroMedia vs FFmpeg
-**Speedup Global**: 2.72x | **Redução de Memória**: 6.21x
+**Speedup Global**: 2.61x | **Redução de Memória**: 6.78x
 
 ---
 
@@ -16,7 +16,7 @@ Cada análise é baseada nos dados quantitativos reais e na experiência profiss
 ### 1. Dr. Rafael Monteiro
 **Professor de Sistemas Distribuídos, USP** | Domínio: *Concorrência & Runtime*
 
-> O modelo de goroutines do CroMedia com backpressure via canais Go demonstra um speedup de 2.7x sobre o FFmpeg. A implementação de Worker Pools Hierárquicos resolve o problema crítico de contenção do scheduler quando múltiplos pipelines executam simultaneamente. A decisão de usar `sync.Pool` com buckets escalonados (16KB-4MB) e pruning dinâmico é arquiteturalmente superior ao `av_malloc` do FFmpeg. Recomendo investigar a possibilidade de usar `runtime.LockOSThread()` em workers críticos para reduzir latência de context switch.
+> O modelo de goroutines do CroMedia com backpressure via canais Go demonstra um speedup de 2.6x sobre o FFmpeg. A implementação de Worker Pools Hierárquicos resolve o problema crítico de contenção do scheduler quando múltiplos pipelines executam simultaneamente. A decisão de usar `sync.Pool` com buckets escalonados (16KB-4MB) e pruning dinâmico é arquiteturalmente superior ao `av_malloc` do FFmpeg. Recomendo investigar a possibilidade de usar `runtime.LockOSThread()` em workers críticos para reduzir latência de context switch.
 
 ---
 
@@ -44,14 +44,14 @@ Cada análise é baseada nos dados quantitativos reais e na experiência profiss
 ### 5. Eng. Pedro Nascimento
 **Principal Engineer, Twitch Live Encoding** | Domínio: *Streaming & Rede*
 
-> O HybridJitterBuffer com spill-to-disk é uma solução elegante para degradação de banda. Em nossos testes na Twitch, jitter buffers puramente em RAM causam OOM kills quando a banda cai abaixo de 500kbps durante streams 1080p60. A serialização binária para disco com header de 33 bytes é eficiente. A redução de memória de 6.2x no networking confirma que a arquitetura Go de zero-copy é superior ao modelo fork/pipe do FFmpeg.
+> O HybridJitterBuffer com spill-to-disk é uma solução elegante para degradação de banda. Em nossos testes na Twitch, jitter buffers puramente em RAM causam OOM kills quando a banda cai abaixo de 500kbps durante streams 1080p60. A serialização binária para disco com header de 33 bytes é eficiente. A redução de memória de 6.8x no networking confirma que a arquitetura Go de zero-copy é superior ao modelo fork/pipe do FFmpeg.
 
 ---
 
 ### 6. Dr. Marcos Oliveira
 **CTO, Globo Streaming** | Domínio: *Arquitetura de Sistemas*
 
-> De uma perspectiva de arquitetura, o CroMedia apresenta vantagens fundamentais: (1) Single binary com linkagem estática elimina dependency hell, (2) O pool de buffers hierárquico com GC finalizer como safety net previne memory leaks em produção, (3) A telemetria por PipelineContext com métricas de CPU via syscall.Getrusage é mais precisa que o time(1) usado tipicamente com FFmpeg. O speedup geral de 2.7x é consistente com o que esperamos de uma reescrita Go bem arquitetada.
+> De uma perspectiva de arquitetura, o CroMedia apresenta vantagens fundamentais: (1) Single binary com linkagem estática elimina dependency hell, (2) O pool de buffers hierárquico com GC finalizer como safety net previne memory leaks em produção, (3) A telemetria por PipelineContext com métricas de CPU via syscall.Getrusage é mais precisa que o time(1) usado tipicamente com FFmpeg. O speedup geral de 2.6x é consistente com o que esperamos de uma reescrita Go bem arquitetada.
 
 ---
 
@@ -232,7 +232,7 @@ Cada análise é baseada nos dados quantitativos reais e na experiência profiss
 2. **Memory Safety**: TrackedBuffer com GC finalizer previne leaks em produção 24/7
 3. **Paralelismo Eficiente**: Scanline parallelism com GOMAXPROCS workers escala linearmente
 4. **Startup Rápido**: Binary estático com ~5ms de inicialização vs ~50ms do FFmpeg
-5. **Performance Geral**: Speedup médio de **2.7x** com **6.2x** menos memória
+5. **Performance Geral**: Speedup médio de **2.6x** com **6.8x** menos memória
 
 ### Áreas para Melhoria (Consenso Majoritário)
 

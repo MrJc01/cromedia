@@ -48,7 +48,7 @@ func SniffFormat(r io.ReadSeeker) (string, error) {
 		return "ogg", nil
 	}
 
-	// 5. WAV & WebP
+	// 5. WAV & WebP & AVI
 	if n >= 12 && bytes.Equal(buf[0:4], []byte("RIFF")) {
 		if bytes.Equal(buf[8:12], []byte("WAVE")) {
 			return "wav", nil
@@ -56,6 +56,20 @@ func SniffFormat(r io.ReadSeeker) (string, error) {
 		if bytes.Equal(buf[8:12], []byte("WEBP")) {
 			return "webp", nil
 		}
+		if bytes.Equal(buf[8:12], []byte("AVI ")) {
+			return "avi", nil
+		}
+	}
+
+	// 5b. ASF / WMV
+	asfGUID := []byte{0x30, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11, 0xA6, 0xD9, 0x00, 0xAA, 0x00, 0x62, 0xEC, 0xE6}
+	if n >= 16 && bytes.Equal(buf[0:16], asfGUID) {
+		return "asf", nil
+	}
+
+	// 5c. RealMedia
+	if bytes.HasPrefix(buf, []byte(".RMF")) {
+		return "rm", nil
 	}
 
 	// 6. FLAC
@@ -82,22 +96,29 @@ func SniffFormat(r io.ReadSeeker) (string, error) {
 		return "mp3", nil
 	}
 
-	// 9. ADTS AAC or MP3 (raw frame headers starting with 0xFF)
+	// 9. ADTS AAC, MP3 or MP2 (raw frame headers starting with 0xFF)
 	if buf[0] == 0xFF && (buf[1]&0xF0) == 0xF0 {
 		// ADTS Layer has bits [2:1] as 00
 		if (buf[1] & 0x06) == 0 {
 			return "aac", nil
 		}
-		// MP3 Layer has bits [2:1] != 00
-		if (buf[1] & 0x06) != 0 {
+		// MP3 Layer III has bits [2:1] as 01
+		if (buf[1] & 0x06) == 0x02 {
 			return "mp3", nil
+		}
+		// MP2 Layer II has bits [2:1] as 10
+		if (buf[1] & 0x06) == 0x04 {
+			return "mp2", nil
 		}
 	}
 
-	// Double check generic MP3 sync word (11 bits set: 0xFFE0 mask)
+	// Double check generic MP3/MP2 sync word (11 bits set: 0xFFE0 mask)
 	if buf[0] == 0xFF && (buf[1]&0xE0) == 0xE0 {
-		if (buf[1] & 0x06) != 0 {
+		if (buf[1] & 0x06) == 0x02 {
 			return "mp3", nil
+		}
+		if (buf[1] & 0x06) == 0x04 {
+			return "mp2", nil
 		}
 	}
 
@@ -131,6 +152,11 @@ func SniffFormat(r io.ReadSeeker) (string, error) {
 
 // NewDemuxerFromFormat creates a Demuxer matching the auto-detected format.
 func NewDemuxerFromFormat(format string, file *os.File) (Demuxer, error) {
+	if PluginDemuxerFinder != nil {
+		if d, err := PluginDemuxerFinder(format, file); d != nil && err == nil {
+			return d, nil
+		}
+	}
 	switch format {
 	case "mp4":
 		return NewMP4Demuxer(file), nil

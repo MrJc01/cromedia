@@ -278,4 +278,23 @@ func TestMuxers(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+
+	// 14. Disk Full Simulation (error propagation check)
+	t.Run("DiskFullSimulation", func(t *testing.T) {
+		f, err := os.CreateTemp("", "test_disk_full_*.wav")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(f.Name())
+		
+		m := NewWAVMuxer(f)
+		
+		// Close the file descriptor immediately to trigger write failure (simulating disk full / bad file descriptor)
+		f.Close()
+		
+		err = m.WriteHeader(tracks)
+		if err == nil {
+			t.Error("expected write error on closed file, got nil")
+		}
+	})
 }

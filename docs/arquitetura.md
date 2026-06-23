@@ -60,3 +60,21 @@ O CroMedia foi projetado seguindo uma arquitetura modular baseada em pipelines d
 ### 4. Smart Cutter (Corte Inteligente)
 *   Minimiza a transcodificação.
 *   Se o usuário solicita um corte que não coincide exatamente com um Keyframe (I-Frame), o CroMedia re-encoda apenas a transição inicial (primeiro GOP) e final (último GOP), enquanto copia diretamente os GOPs intermediários íntegros (*bit-stream copy*).
+
+### 5. Arquitetura Modular de Plugins (Dinâmico e Estático)
+*   **Plugins Dinâmicos**: Carregamento sob demanda de arquivos `.so` (Linux) ou `.dll` (Windows) em runtime com validação criptográfica e SemVer/ABI.
+*   **Isolamento (Sandboxing)**: Execução opcional em subprocesso isolado via GOB IPC, protegendo contra vazamentos de memória e falhas graves.
+*   **Plugins Legados Estáticos**: Módulos legados (ASF, AVI, RealMedia, MP2 e codecs obsoletos) integrados sob build tags (ex: `-tags "legacy"`) para compilação estática opcional, preservando o tamanho mínimo do núcleo.
+
+### 6. Módulo e Sequenciador de Imagens Nativas
+*   Manipulação de formatos de imagem (PNG, JPEG, WebP, BMP, TIFF) com suporte a sniffer de bytes mágicos.
+*   Leitura de sequências de imagens do disco utilizando padrões Glob ou Printf para montagem de fluxo de vídeo e exportação de frames intercalados.
+
+### 7. Sistema Central de Filtros de Áudio e Vídeo
+*   Gerenciamento dinâmico e thread-safe de filtros via fábrica de criação (`core/filters/filter_mgr.go`).
+*   Filtros nativos implementados (ajustes tonais, desfoque/nitidez, keying de croma, equalizadores paramétricos multibanda, etc.) complementados por pontes opcionais CGO para a `libavfilter` do FFmpeg.
+
+### 8. CLI FFmpeg-Compat e Mecanismo de Fallback
+*   Interface compatível com a sintaxe clássica do FFmpeg (flags `-i`, `-vf`, `-af`, `-c:v`, etc.).
+*   Fallback transparente para a instalação local do `ffmpeg` com barra de progresso em linha e controle de execução estrita (`--strict` / `CROMEDIA_STRICT`).
+

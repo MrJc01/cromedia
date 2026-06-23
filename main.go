@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"cromedia/core/demux"
 	"cromedia/core/hardware"
 	"cromedia/core/mux"
+	"cromedia/core/plugins"
 )
 
 // Helper to print atom tree structure
@@ -43,7 +45,11 @@ func main() {
 
 	// FFmpeg-compatible syntax parse check (e.g. -i input.mp4)
 	if command == "-i" {
-		parseFFmpegSyntax()
+		err := core.RunFFmpegCompat(os.Args[1:])
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
 		return
 	}
 
@@ -206,9 +212,63 @@ func main() {
 		fmt.Println("  Muxers:")
 		fmt.Println("    mp4, fmp4, webm, mkv, ts, flv, ogg, wav, mp3, aac, flac, annexb, srt, vtt")
 
+	case "sandbox-worker":
+		if len(os.Args) < 5 {
+			fmt.Println("Usage: cromedia sandbox-worker <plugin_path> <decoder_name> <video|audio>")
+			os.Exit(1)
+		}
+		plugins.RunSandboxWorker(os.Args[2], os.Args[3], os.Args[4])
+		return
+
+	case "plugins":
+		if len(os.Args) >= 3 && os.Args[2] == "list" {
+			pluginsPath := os.Getenv("CROMEDIA_PLUGINS_PATH")
+			if pluginsPath == "" {
+				pluginsPath = "./plugins"
+			}
+			_ = plugins.LoadPluginsFromDir(pluginsPath)
+			list := plugins.ListPlugins()
+			fmt.Println("Available Plugins:")
+			fmt.Printf("  Demuxers: %v\n", list["demuxers"])
+			fmt.Printf("  Muxers:   %v\n", list["muxers"])
+			fmt.Printf("  Decoders: %v\n", list["decoders"])
+			fmt.Printf("  Encoders: %v\n", list["encoders"])
+		} else if len(os.Args) >= 3 && os.Args[2] == "server" {
+			port := "8080"
+			if len(os.Args) >= 4 {
+				port = os.Args[3]
+			}
+			fmt.Printf("Starting plugin debug REST server on port %s...\n", port)
+			http.HandleFunc("/debug/plugins", plugins.HandlePluginDebugInfo)
+			err := http.ListenAndServe(":"+port, nil)
+			if err != nil {
+				fmt.Printf("Server error: %v\n", err)
+				os.Exit(1)
+			}
+		} else {
+			fmt.Println("Usage: cromedia plugins <list|server [port]>")
+			os.Exit(1)
+		}
+
 	case "version":
 		fmt.Println("CroMedia v0.8")
 		fmt.Println("Features: Multi-Track, Interleaving, B-Frame (ctts), Edit Lists (edts), Matrix Rotation, co64, Network, Filters, HW Accel")
+
+	case "autocomplete":
+		fmt.Println(`_cromedia_completion() {
+	local cur prev opts
+	COMPREPLY=()
+	cur="${COMP_WORDS[COMP_CWORD]}"
+	prev="${COMP_WORDS[COMP_CWORD-1]}"
+	opts="probe cut devices codecs formats plugins version help autocomplete --strict --benchmark -i -y -c:v -vcodec -c:a -acodec -b:v -b:a -ss -to -t -vf -af -filter_complex -map -pix_fmt -metadata -chapters -hls_time -hls_list_size"
+
+	if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
+		COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+		return 0
+	fi
+}
+complete -F _cromedia_completion cromedia`)
+		return
 
 	case "help":
 		showHelp()
@@ -223,15 +283,17 @@ func showHelp() {
 	fmt.Println("CroMedia v0.8 — High-Performance Modular Media Toolkit")
 	fmt.Println("Usage: cromedia <command> [args]")
 	fmt.Println("\nCommands:")
-	fmt.Println("  probe    <file.mp4> [--json]                 Inspect container structure")
-	fmt.Println("  cut      <input> <start> <end> <output>       Cut video (keyframe-accurate)")
-	fmt.Println("  devices                                       List graphics devices")
-	fmt.Println("  codecs                                        List compiled codecs")
-	fmt.Println("  formats                                       List demuxers and muxers")
-	fmt.Println("  version                                       Show version info")
-	fmt.Println("  help                                          Show this help text")
-	fmt.Println("\nOr run with FFmpeg compatibility:")
-	fmt.Println("  cromedia -i input.mp4 -ss 00:01:00 -t 10 -c:v copy output.mp4")
+	fmt.Println("  probe        <file.mp4> [--json]                 Inspect container structure")
+	fmt.Println("  cut          <input> <start> <end> <output>       Cut video (keyframe-accurate)")
+	fmt.Println("  devices                                           List graphics devices")
+	fmt.Println("  codecs                                            List compiled codecs")
+	fmt.Println("  formats                                           List demuxers and muxers")
+	fmt.Println("  plugins      list                                 List loaded dynamic plugins")
+	fmt.Println("  version                                           Show version info")
+	fmt.Println("  autocomplete                                      Generate shell autocompletions")
+	fmt.Println("  help                                              Show this help text")
+	fmt.Println("\nSupported Translated FFmpeg Flags:")
+	fmt.Println("  -i, -y, -c:v, -vcodec, -c:a, -acodec, -b:v, -b:a, -ss, -to, -t, -vf, -af, -filter_complex, -map, -pix_fmt, -metadata, -chapters, -hls_time, -hls_list_size, -rtmp_*, --strict, --benchmark")
 }
 
 func parseFFmpegSyntax() {

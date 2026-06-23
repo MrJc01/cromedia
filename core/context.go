@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -20,23 +19,12 @@ type PipelineContext struct {
 	errors       []error
 }
 
-// getCPUTimes fetches User and System CPU times for the current process.
-func getCPUTimes() (time.Duration, time.Duration) {
-	var usage syscall.Rusage
-	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &usage); err == nil {
-		user := time.Duration(usage.Utime.Sec)*time.Second + time.Duration(usage.Utime.Usec)*time.Microsecond
-		sys := time.Duration(usage.Stime.Sec)*time.Second + time.Duration(usage.Stime.Usec)*time.Microsecond
-		return user, sys
-	}
-	return 0, 0
-}
-
 // NewPipelineContext creates a new pipeline context.
 func NewPipelineContext(parent context.Context) *PipelineContext {
 	if parent == nil {
 		parent = context.Background()
 	}
-	user, sys := getCPUTimes()
+	user, sys := GetCPUTimes()
 	return &PipelineContext{
 		Context:      parent,
 		startTime:    time.Now(),
@@ -89,7 +77,7 @@ func (c *PipelineContext) GetTelemetry() (time.Duration, time.Duration, time.Dur
 	errorsCopy := make([]error, len(c.errors))
 	copy(errorsCopy, c.errors)
 
-	currentUser, currentSys := getCPUTimes()
+	currentUser, currentSys := GetCPUTimes()
 	userDiff := currentUser - c.startUserCPU
 	sysDiff := currentSys - c.startSysCPU
 

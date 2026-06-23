@@ -22,11 +22,17 @@ jobs:
     - name: Get dependencies
       run: go get -v -t -d ./...
 
-    - name: Build
+    - name: Build Standard
       run: go build -v ./...
 
-    - name: Run tests
+    - name: Build with Legacy tags
+      run: go build -v -tags "legacy legacy_avi legacy_asf legacy_rm legacy_mp2 legacy_codecs" ./...
+
+    - name: Run standard tests
       run: go test -v -coverprofile=coverage.out ./...
+
+    - name: Run tests with Legacy tags
+      run: go test -v -tags "legacy legacy_avi legacy_asf legacy_rm legacy_mp2 legacy_codecs" ./...
 
     - name: Verify Coverage
       run: |

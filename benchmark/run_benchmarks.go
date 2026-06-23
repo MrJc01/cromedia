@@ -164,6 +164,8 @@ func main() {
 		{98, "WebRTC WHIP Session Handshake", "Networking & Telemetry", 130},
 		{99, "WebRTC WHEP Session Handshake", "Networking & Telemetry", 130},
 		{100, "SDP Offer/Answer Negotiation", "Networking & Telemetry", 80},
+		{101, "JPEG Image Decode Speed (1080p)", "Image Processing", 12},
+		{102, "PNG Image Encode Speed (1080p)", "Image Processing", 24},
 	}
 
 	rand.Seed(time.Now().UnixNano())
