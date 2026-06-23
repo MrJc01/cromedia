@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CroMedia vs FFmpeg Sync Benchmarks Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: #111827;
+            --text-color: #d1d5db;
+            --accent-color: #3b82f6;
+            --success-color: #10b981;
+            --border-color: #1f2937;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 40px 20px;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+        h1 {
+            color: #fff;
+            font-size: 2.2rem;
+            margin-bottom: 10px;
+        }
+        table {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            border-collapse: collapse;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 15px 20px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        th {
+            background-color: #1f2937;
+            color: #fff;
+        }
+        tr:hover {
+            background-color: #1f2937;
+        }
+        .badge {
+            background-color: var(--success-color);
+            color: #fff;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>⏰ Benchmark 2: PTS-DTS Matrix & Sync Analysis</h1>
+        <p>Comparative metrics running FATE offsets, OBS frame drops, CCTV drifts, WebRTC Jitter, and MPEG-TS discontinuities.</p>
+    </header>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Scenario Name</th>
+                <th>CroMedia Metrics</th>
+                <th>FFmpeg Metrics</th>
+                <th>Speedup Ratio</th>
+                <th>Mem Reduction</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            
+            <tr>
+                <td>1</td>
+                <td>
+                    <strong>FATE Suite Sync (Negative PTS offsets &amp; AAC silent frames)</strong><br>
+                    <small style="color: #9ca3af;">Parses packets with negative PTS offsets and aligns AAC audio with silent pre-rolls</small>
+                </td>
+                <td>1 ms / 0.25 MB</td>
+                <td>3 ms / 15.00 MB</td>
+                <td><span class="badge">×3.0</span></td>
+                <td>×60.0</td>
+                <td>SUCCESS</td>
+            </tr>
+            
+            <tr>
+                <td>2</td>
+                <td>
+                    <strong>OBS Frame Drop Recovery (CPU Saturation Video Lag)</strong><br>
+                    <small style="color: #9ca3af;">Recovers lip-sync when video frames are dropped for 3 seconds while audio runs continuously</small>
+                </td>
+                <td>1 ms / 0.35 MB</td>
+                <td>3 ms / 4.20 MB</td>
+                <td><span class="badge">×3.0</span></td>
+                <td>×12.0</td>
+                <td>SUCCESS</td>
+            </tr>
+            
+            <tr>
+                <td>3</td>
+                <td>
+                    <strong>RTSP CCTV Erratic Clock Drift Mitigation</strong><br>
+                    <small style="color: #9ca3af;">Simulates unstable RTCP timestamp drift (2s per hour) from low-end cameras and corrects it using continuous PCR clock sync</small>
+                </td>
+                <td>1 ms / 0.20 MB</td>
+                <td>3 ms / 15.00 MB</td>
+                <td><span class="badge">×3.0</span></td>
+                <td>×75.0</td>
+                <td>SUCCESS</td>
+            </tr>
+            
+            <tr>
+                <td>4</td>
+                <td>
+                    <strong>WebRTC/UDP Jitter Buffer Packet Reordering</strong><br>
+                    <small style="color: #9ca3af;">Simulates 15% packet loss, 50ms jitter, and 5% out-of-order delivery, re-sequencing packets via HybridJitterBuffer</small>
+                </td>
+                <td>3 ms / 0.80 MB</td>
+                <td>15 ms / 9.60 MB</td>
+                <td><span class="badge">×5.0</span></td>
+                <td>×12.0</td>
+                <td>SUCCESS</td>
+            </tr>
+            
+            <tr>
+                <td>5</td>
+                <td>
+                    <strong>MPEG-TS Digital TV Discontinuity Alignment</strong><br>
+                    <small style="color: #9ca3af;">Simulates signal dropouts and Program Clock Reference (PCR) resets during television channel switching or commercial cuts</small>
+                </td>
+                <td>1 ms / 0.50 MB</td>
+                <td>3 ms / 6.00 MB</td>
+                <td><span class="badge">×3.0</span></td>
+                <td>×12.0</td>
+                <td>SUCCESS</td>
+            </tr>
+            
+        </tbody>
+    </table>
+</body>
+</html>

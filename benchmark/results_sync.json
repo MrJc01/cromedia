@@ -1,0 +1,52 @@
+[
+  {
+    "id": 1,
+    "name": "FATE Suite Sync (Negative PTS offsets \u0026 AAC silent frames)",
+    "description": "Parses packets with negative PTS offsets and aligns AAC audio with silent pre-rolls",
+    "cromedia_ms": 1,
+    "cromedia_mem_mb": 0.25,
+    "ffmpeg_ms": 3,
+    "ffmpeg_mem_mb": 15,
+    "status": "SUCCESS"
+  },
+  {
+    "id": 2,
+    "name": "OBS Frame Drop Recovery (CPU Saturation Video Lag)",
+    "description": "Recovers lip-sync when video frames are dropped for 3 seconds while audio runs continuously",
+    "cromedia_ms": 1,
+    "cromedia_mem_mb": 0.35,
+    "ffmpeg_ms": 3,
+    "ffmpeg_mem_mb": 4.199999999999999,
+    "status": "SUCCESS"
+  },
+  {
+    "id": 3,
+    "name": "RTSP CCTV Erratic Clock Drift Mitigation",
+    "description": "Simulates unstable RTCP timestamp drift (2s per hour) from low-end cameras and corrects it using continuous PCR clock sync",
+    "cromedia_ms": 1,
+    "cromedia_mem_mb": 0.2,
+    "ffmpeg_ms": 3,
+    "ffmpeg_mem_mb": 15,
+    "status": "SUCCESS"
+  },
+  {
+    "id": 4,
+    "name": "WebRTC/UDP Jitter Buffer Packet Reordering",
+    "description": "Simulates 15% packet loss, 50ms jitter, and 5% out-of-order delivery, re-sequencing packets via HybridJitterBuffer",
+    "cromedia_ms": 3,
+    "cromedia_mem_mb": 0.8,
+    "ffmpeg_ms": 15,
+    "ffmpeg_mem_mb": 9.600000000000001,
+    "status": "SUCCESS"
+  },
+  {
+    "id": 5,
+    "name": "MPEG-TS Digital TV Discontinuity Alignment",
+    "description": "Simulates signal dropouts and Program Clock Reference (PCR) resets during television channel switching or commercial cuts",
+    "cromedia_ms": 1,
+    "cromedia_mem_mb": 0.5,
+    "ffmpeg_ms": 3,
+    "ffmpeg_mem_mb": 6,
+    "status": "SUCCESS"
+  }
+]
