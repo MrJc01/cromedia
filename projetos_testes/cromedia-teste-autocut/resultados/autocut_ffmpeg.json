@@ -1,0 +1,11 @@
+{
+  "channels": 2,
+  "cmd_executed": "ffmpeg -i input ...",
+  "engine": "FFmpeg (Process-based)",
+  "peak_memory_mb": 55.4,
+  "processing_time_ms": 310,
+  "sample_rate": 44100,
+  "silences_found": 3,
+  "test": "autocut",
+  "total_duration_sec": 10
+}

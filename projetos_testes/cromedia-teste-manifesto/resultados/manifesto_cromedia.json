@@ -1,0 +1,17 @@
+{
+  "audio_duration_sec": 4,
+  "audio_mix_tracks": [
+    "bg_music(440Hz,30%)",
+    "narration(220Hz+pink_noise)",
+    "normalized(-1dB)"
+  ],
+  "encoded_bytes": 4001203,
+  "encoded_mb": 3.8158445358276367,
+  "engine": "CroMedia (Go-native)",
+  "frames_encoded": 120,
+  "parts_concatenated": 3,
+  "peak_memory_mb": 506.12,
+  "processing_time_ms": 1791,
+  "test": "manifesto",
+  "total_frames": 120
+}

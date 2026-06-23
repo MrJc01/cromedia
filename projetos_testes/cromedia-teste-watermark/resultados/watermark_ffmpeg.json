@@ -1,0 +1,9 @@
+{
+  "cmd_executed": "ffmpeg -i input ...",
+  "engine": "FFmpeg (Process-based)",
+  "peak_memory_mb": 70.4,
+  "processing_time_ms": 4500,
+  "test": "watermark",
+  "total_frames": 150,
+  "videos_processed": 5
+}

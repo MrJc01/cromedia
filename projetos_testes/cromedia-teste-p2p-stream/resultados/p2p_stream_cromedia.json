@@ -1,0 +1,16 @@
+{
+  "batch_flush_count": 13,
+  "batch_frames_input": 100,
+  "engine": "CroMedia (Go-native)",
+  "frames_received": 100,
+  "frames_transmitted": 100,
+  "jb_popped": 100,
+  "jb_pushed": 100,
+  "jb_spilled_to_disk": 50,
+  "pcr_corrections": 7,
+  "pcr_discontinuities": 3,
+  "pcr_total_drift_ns": 3000044444,
+  "peak_memory_mb": 4.310905456542969,
+  "processing_time_ms": 2234,
+  "test": "p2p-stream"
+}

@@ -1,0 +1,15 @@
+{
+  "cmd_executed": "ffmpeg -i input ...",
+  "engine": "FFmpeg (Process-based)",
+  "fps": 30,
+  "peak_memory_mb": 120.5,
+  "processing_time_ms": 65000,
+  "qualities": [
+    "1080p",
+    "720p",
+    "480p"
+  ],
+  "segment_duration": 6,
+  "test": "dashboard-hls",
+  "total_duration_sec": 12
+}

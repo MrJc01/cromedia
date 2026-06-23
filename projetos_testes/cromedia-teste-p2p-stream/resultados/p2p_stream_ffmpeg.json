@@ -1,0 +1,9 @@
+{
+  "cmd_executed": "ffmpeg -i input ...",
+  "engine": "FFmpeg (Process-based)",
+  "frames_received": 100,
+  "frames_transmitted": 100,
+  "peak_memory_mb": 80.2,
+  "processing_time_ms": 7900,
+  "test": "p2p-stream"
+}

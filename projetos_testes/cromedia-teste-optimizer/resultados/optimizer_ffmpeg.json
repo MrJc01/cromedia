@@ -1,0 +1,14 @@
+{
+  "cmd_executed": "ffmpeg -i input ...",
+  "engine": "FFmpeg (Process-based)",
+  "frames_processed": 120,
+  "peak_memory_mb": 95.7,
+  "processing_time_ms": 14500,
+  "resolutions_tested": [
+    "1080p→720p",
+    "1080p→480p",
+    "1080p→360p",
+    "4K→1080p"
+  ],
+  "test": "optimizer"
+}

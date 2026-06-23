@@ -1,0 +1,35 @@
+{
+  "channels": 2,
+  "engine": "CroMedia (Go-native)",
+  "filters_applied": [
+    "PredictiveGainNormalizer",
+    "HighPassFilter(80Hz)",
+    "DynamicRangeCompressor(3:1)"
+  ],
+  "peak_memory_mb": 13.665122985839844,
+  "processing_time_ms": 43,
+  "sample_rate": 44100,
+  "silence_percent": 30,
+  "silence_segments": [
+    {
+      "start_sec": 2,
+      "end_sec": 3,
+      "duration_sec": 1
+    },
+    {
+      "start_sec": 6,
+      "end_sec": 7,
+      "duration_sec": 1
+    },
+    {
+      "start_sec": 8,
+      "end_sec": 9,
+      "duration_sec": 1
+    }
+  ],
+  "silences_found": 3,
+  "test": "autocut",
+  "threshold_db": -30,
+  "total_duration_sec": 10,
+  "total_silence_sec": 3
+}

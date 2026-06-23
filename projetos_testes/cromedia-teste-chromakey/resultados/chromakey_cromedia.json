@@ -1,0 +1,24 @@
+{
+  "avg_frame_us": 24777,
+  "blend_enabled": true,
+  "chroma_color": "RGB(0,255,0)",
+  "edge_detection": "SIMDSobelFilter",
+  "engine": "CroMedia (Go-native)",
+  "filters_applied": [
+    "ChromaKey(euclidean RGB)",
+    "SoftBlend(1.5x border)",
+    "SIMDSobelFilter",
+    "MJPEGEncoder"
+  ],
+  "frames_processed": 30,
+  "peak_memory_mb": 119.71,
+  "pixels_replaced": 25528170,
+  "pool_gets": 90,
+  "pool_puts": 90,
+  "processing_time_ms": 743,
+  "replacement_percent": 92.33,
+  "resolution": "1280x720",
+  "similarity": 0.3,
+  "test": "chromakey",
+  "total_pixels": 27648000
+}

@@ -1,0 +1,12 @@
+{
+  "channels_extracted": 6,
+  "cmd_executed": "ffmpeg -i input ...",
+  "duration_sec": 5,
+  "engine": "FFmpeg (Process-based)",
+  "input_channels": 6,
+  "input_layout": "5.1 Surround",
+  "peak_memory_mb": 45.2,
+  "processing_time_ms": 180,
+  "sample_rate": 48000,
+  "test": "audiosegregator"
+}

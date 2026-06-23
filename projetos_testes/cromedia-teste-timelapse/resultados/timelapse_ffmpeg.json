@@ -1,0 +1,9 @@
+{
+  "cmd_executed": "ffmpeg -i input ...",
+  "engine": "FFmpeg (Process-based)",
+  "output_resolution": "1920x1080",
+  "peak_memory_mb": 85.6,
+  "photos_input": 60,
+  "processing_time_ms": 16800,
+  "test": "timelapse"
+}

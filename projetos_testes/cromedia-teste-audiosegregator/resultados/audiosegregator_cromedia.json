@@ -1,0 +1,63 @@
+{
+  "channels_extracted": [
+    {
+      "Name": "FL",
+      "Samples": 240000,
+      "PeakDb": -1,
+      "RmsDb": -4.6,
+      "Freq": 220
+    },
+    {
+      "Name": "FR",
+      "Samples": 240000,
+      "PeakDb": -1,
+      "RmsDb": -4.68,
+      "Freq": 330
+    },
+    {
+      "Name": "Center",
+      "Samples": 240000,
+      "PeakDb": -3.1,
+      "RmsDb": -11.25,
+      "Freq": 440
+    },
+    {
+      "Name": "LFE",
+      "Samples": 240000,
+      "PeakDb": -5.29,
+      "RmsDb": -8.79,
+      "Freq": 110
+    },
+    {
+      "Name": "BL",
+      "Samples": 240000,
+      "PeakDb": -1,
+      "RmsDb": -4.05,
+      "Freq": 55
+    },
+    {
+      "Name": "BR",
+      "Samples": 240000,
+      "PeakDb": -1,
+      "RmsDb": -4.51,
+      "Freq": 880
+    }
+  ],
+  "downmix_output": "Stereo (ITU-R BS.775)",
+  "duration_sec": 5,
+  "engine": "CroMedia (Go-native)",
+  "filters_applied": [
+    "LowPassFilter(LFE@120Hz)",
+    "DynamicRangeCompressor(Center)",
+    "HighPassFilter(80Hz)",
+    "PredictiveGainNormalizer",
+    "SincResampler(64 taps)"
+  ],
+  "input_channels": 6,
+  "input_layout": "5.1 Surround",
+  "peak_memory_mb": 35.78,
+  "processing_time_ms": 167,
+  "resampled_to": 44100,
+  "sample_rate": 48000,
+  "test": "audiosegregator"
+}

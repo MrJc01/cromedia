@@ -1,0 +1,9 @@
+{
+  "audio_duration_sec": 4,
+  "cmd_executed": "ffmpeg -i input ...",
+  "engine": "FFmpeg (Process-based)",
+  "peak_memory_mb": 75.3,
+  "processing_time_ms": 6200,
+  "test": "manifesto",
+  "total_frames": 120
+}

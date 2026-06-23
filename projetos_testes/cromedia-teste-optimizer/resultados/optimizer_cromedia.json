@@ -1,0 +1,17 @@
+{
+  "engine": "CroMedia (Go-native)",
+  "test": "optimizer",
+  "frames_processed": 120,
+  "total_time_ms": 3323,
+  "avg_frame_time_us": 27696,
+  "peak_memory_mb": 1803.9733505249023,
+  "pool_gets": 120,
+  "pool_puts": 120,
+  "active_leases": 0,
+  "resolutions_tested": [
+    "1080p→720p",
+    "1080p→480p",
+    "1080p→360p",
+    "4K→1080p"
+  ]
+}

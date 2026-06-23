@@ -1,0 +1,19 @@
+{
+  "duration_sec": 2,
+  "encoded_bytes": 2300313,
+  "encoded_mb": 2.19,
+  "engine": "CroMedia (Go-native)",
+  "filters_applied": [
+    "ColorFilter(+10br,1.2x)",
+    "SIMDScaleFilter(1920x1080,bilinear)"
+  ],
+  "frames_processed": 60,
+  "output_resolution": "1920x1080",
+  "peak_memory_mb": 1368.8,
+  "photos_input": 60,
+  "pool_gets": 60,
+  "pool_puts": 60,
+  "processing_time_ms": 4820,
+  "target_fps": 30,
+  "test": "timelapse"
+}

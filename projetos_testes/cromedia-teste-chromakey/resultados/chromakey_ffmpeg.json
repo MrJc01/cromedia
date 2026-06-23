@@ -1,0 +1,10 @@
+{
+  "chroma_color": "green",
+  "cmd_executed": "ffmpeg -i input ...",
+  "engine": "FFmpeg (Process-based)",
+  "frames_processed": 30,
+  "peak_memory_mb": 75.8,
+  "processing_time_ms": 850,
+  "resolution": "1280x720",
+  "test": "chromakey"
+}

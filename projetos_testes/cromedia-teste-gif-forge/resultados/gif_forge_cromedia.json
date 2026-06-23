@@ -1,0 +1,21 @@
+{
+  "avg_frame_us": 22533,
+  "duration_sec": 3,
+  "encoded_bytes": 289493,
+  "encoded_kb": 282.71,
+  "engine": "CroMedia (Go-native)",
+  "filters_applied": [
+    "BicubicScaleFilter(Mitchell-Netravali)",
+    "ColorFilter(+5br,1.15x)"
+  ],
+  "frames_input": 45,
+  "peak_memory_mb": 134.15,
+  "pool_gets": 45,
+  "pool_puts": 45,
+  "processing_time_ms": 1014,
+  "source_res": "1280x720",
+  "target_fps": 15,
+  "target_width": 480,
+  "test": "gif-forge",
+  "unique_colors": 69739
+}

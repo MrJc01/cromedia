@@ -1,0 +1,25 @@
+{
+  "engine": "CroMedia (Go-native)",
+  "features_used": [
+    "PackedFrameBuffer",
+    "CGOBatchProcessor",
+    "HierarchicalWorkerPool",
+    "MJPEGEncoder"
+  ],
+  "fps": 30,
+  "peak_memory_mb": 13232.75,
+  "pool_gets": 1080,
+  "pool_puts": 1080,
+  "processing_time_ms": 21885,
+  "qualities": [
+    "1080p",
+    "720p",
+    "480p"
+  ],
+  "segment_duration": 6,
+  "test": "dashboard-hls",
+  "total_duration_sec": 12,
+  "total_encoded_kb": 99755.39,
+  "total_encoded_mb": 97.42,
+  "total_segments": 6
+}
