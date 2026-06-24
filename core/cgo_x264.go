@@ -145,6 +145,13 @@ type SimH264Encoder struct {
 	KeyintMax int
 }
 
+func NewSimH264Encoder(fps int, keyintMax int) *SimH264Encoder {
+	return &SimH264Encoder{
+		fps:       fps,
+		KeyintMax: keyintMax,
+	}
+}
+
 func (enc *SimH264Encoder) lazyInit(frame *VideoFrame) error {
 	if enc.ctx != nil {
 		return nil

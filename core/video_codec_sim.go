@@ -8,6 +8,13 @@ type SimH264Encoder struct {
 	fps       int
 }
 
+func NewSimH264Encoder(fps int, keyintMax int) *SimH264Encoder {
+	return &SimH264Encoder{
+		fps:       fps,
+		KeyintMax: keyintMax,
+	}
+}
+
 func (e *SimH264Encoder) Encode(frame *VideoFrame) (*Packet, error) {
 	if frame == nil {
 		return nil, nil
