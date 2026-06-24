@@ -33,7 +33,7 @@ static inline cgo_h264_dec_t* cgo_h264_dec_open() {
     SDecodingParam param = {0};
     param.sVideoProperty.eVideoBsType = VIDEO_BITSTREAM_DEFAULT;
     
-    if (ctx->decoder->lpVtbl->Initialize(ctx->decoder, &param) != 0) {
+    if ((*ctx->decoder)->Initialize(ctx->decoder, &param) != 0) {
         WelsDestroyDecoder(ctx->decoder);
         free(ctx);
         return NULL;
@@ -47,7 +47,7 @@ static inline int cgo_h264_dec_decode(cgo_h264_dec_t *ctx, const uint8_t *data, 
     unsigned char *planes[3] = {NULL};
     SBufferInfo info = {0};
     
-    DECODING_STATE state = ctx->decoder->lpVtbl->DecodeFrameNoDelay(ctx->decoder, data, len, planes, &info);
+    DECODING_STATE state = (*ctx->decoder)->DecodeFrameNoDelay(ctx->decoder, data, len, planes, &info);
     if (state != dsErrorFree) {
         return -((int)state);
     }
@@ -92,7 +92,7 @@ static inline void cgo_h264_dec_copy_frame(cgo_h264_frame_t *frame, uint8_t *dst
 
 static inline void cgo_h264_dec_close(cgo_h264_dec_t *ctx) {
     if (!ctx) return;
-    ctx->decoder->lpVtbl->Uninitialize(ctx->decoder);
+    (*ctx->decoder)->Uninitialize(ctx->decoder);
     WelsDestroyDecoder(ctx->decoder);
     free(ctx);
 }

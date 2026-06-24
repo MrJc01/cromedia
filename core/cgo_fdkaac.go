@@ -27,7 +27,7 @@ static inline cgo_aac_t* cgo_aac_open(int channels, int sample_rate, int bitrate
     aacEncoder_SetParam(ctx->handle, AACENC_AOT, 2); // AAC-LC
     aacEncoder_SetParam(ctx->handle, AACENC_SAMPLERATE, sample_rate);
     
-    CHANNELMODE mode;
+    CHANNEL_MODE mode;
     switch (channels) {
         case 1: mode = MODE_1; break;
         case 2: mode = MODE_2; break;
@@ -43,7 +43,7 @@ static inline cgo_aac_t* cgo_aac_open(int channels, int sample_rate, int bitrate
         return NULL;
     }
 
-    aacEncGetControllerInfo(ctx->handle, &ctx->info);
+    aacEncInfo(ctx->handle, &ctx->info);
     return ctx;
 }
 
@@ -64,7 +64,7 @@ static inline int cgo_aac_encode(cgo_aac_t *ctx, int16_t *pcm_in, int in_samples
     in_buf_desc.bufSizes = &in_size;
     in_buf_desc.bufElSizes = &in_elem_size;
 
-    int out_identifier = OUT_RAW_DATA;
+    int out_identifier = OUT_BITSTREAM_DATA;
     int out_size = max_out_size;
     int out_elem_size = 1;
     void *out_bufs[] = { aac_out };
@@ -85,13 +85,14 @@ static inline int cgo_aac_encode(cgo_aac_t *ctx, int16_t *pcm_in, int in_samples
 }
 
 static inline int cgo_aac_flush(cgo_aac_t *ctx, uint8_t *aac_out, int max_out_size) {
+    AACENC_BufDesc in_buf_desc = {0};
     AACENC_BufDesc out_buf_desc = {0};
     AACENC_InArgs in_args = {0};
     AACENC_OutArgs out_args = {0};
 
     in_args.numInSamples = -1; // request flush
 
-    int out_identifier = OUT_RAW_DATA;
+    int out_identifier = OUT_BITSTREAM_DATA;
     int out_size = max_out_size;
     int out_elem_size = 1;
     void *out_bufs[] = { aac_out };
@@ -102,9 +103,12 @@ static inline int cgo_aac_flush(cgo_aac_t *ctx, uint8_t *aac_out, int max_out_si
     out_buf_desc.bufSizes = &out_size;
     out_buf_desc.bufElSizes = &out_elem_size;
 
-    AACENC_ERROR err = aacEncEncode(ctx->handle, NULL, &out_buf_desc, &in_args, &out_args);
+    AACENC_ERROR err = aacEncEncode(ctx->handle, &in_buf_desc, &out_buf_desc, &in_args, &out_args);
     if (err == AACENC_OK) {
         return out_args.numOutBytes;
+    }
+    if (err == AACENC_ENCODE_EOF) {
+        return 0;
     }
     return -((int)err);
 }
@@ -370,7 +374,7 @@ func (enc *SimAACEncoder) flushDirect() (*Packet, error) {
 	)
 
 	if size < 0 {
-		return nil, errors.New("failed to flush fdk-aac encoder")
+		return nil, fmt.Errorf("failed to flush fdk-aac encoder: error code %d", -size)
 	}
 
 	if size > 0 {

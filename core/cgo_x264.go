@@ -126,6 +126,50 @@ static inline void cgo_x264_close(cgo_x264_t *ctx) {
     x264_encoder_close(ctx->x264_enc);
     free(ctx);
 }
+
+static inline void copy_yuv420p(const uint8_t *yuv, int w, int h, x264_picture_t *pic) {
+    int y_stride = pic->img.i_stride[0];
+    int u_stride = pic->img.i_stride[1];
+    int v_stride = pic->img.i_stride[2];
+    uint8_t *y_plane = pic->img.plane[0];
+    uint8_t *u_plane = pic->img.plane[1];
+    uint8_t *v_plane = pic->img.plane[2];
+
+    const uint8_t *y_src = yuv;
+    const uint8_t *u_src = yuv + (w * h);
+    const uint8_t *v_src = u_src + ((w / 2) * (h / 2));
+
+    for (int y = 0; y < h; y++) {
+        memcpy(y_plane + (y * y_stride), y_src + (y * w), w);
+    }
+    for (int y = 0; y < h / 2; y++) {
+        memcpy(u_plane + (y * u_stride), u_src + (y * (w / 2)), w / 2);
+        memcpy(v_plane + (y * v_stride), v_src + (y * (w / 2)), w / 2);
+    }
+}
+
+static inline int cgo_x264_encode_yuv(cgo_x264_t *ctx, const uint8_t *yuv, int width, int height, uint8_t *output_buf, int max_output_size, int *is_keyframe, int64_t pts) {
+    copy_yuv420p(yuv, width, height, &ctx->pic_in);
+    ctx->pic_in.i_pts = pts;
+
+    x264_nal_t *nals;
+    int nnal;
+    int size = x264_encoder_encode(ctx->x264_enc, &nals, &nnal, &ctx->pic_in, &ctx->pic_out);
+    if (size < 0) return size;
+
+    int total_bytes = 0;
+    *is_keyframe = 0;
+    for (int i = 0; i < nnal; i++) {
+        if (total_bytes + nals[i].i_payload <= max_output_size) {
+            memcpy(output_buf + total_bytes, nals[i].p_payload, nals[i].i_payload);
+            total_bytes += nals[i].i_payload;
+        }
+        if (nals[i].i_type == NAL_SLICE_IDR) {
+            *is_keyframe = 1;
+        }
+    }
+    return total_bytes;
+}
 */
 import "C"
 
@@ -233,24 +277,39 @@ func (enc *SimH264Encoder) Encode(frame *VideoFrame) (*Packet, error) {
 }
 
 func (enc *SimH264Encoder) encodeFrameDirect(frame *VideoFrame) error {
-	if frame.Format != PixelFormatRGBA {
-		return errors.New("cgo x264 encoder expects RGBA frames")
+	if frame.Format != PixelFormatRGBA && frame.Format != PixelFormatYUV420P {
+		return errors.New("cgo x264 encoder expects RGBA or YUV420P frames")
 	}
 
 	maxOutSize := frame.Width * frame.Height * 4
 	outBuf := make([]byte, maxOutSize)
 
 	var isKeyframe C.int
-	size := C.cgo_x264_encode(
-		enc.ctx,
-		(*C.uint8_t)(unsafe.Pointer(&frame.Data[0])),
-		C.int(frame.Width),
-		C.int(frame.Height),
-		(*C.uint8_t)(unsafe.Pointer(&outBuf[0])),
-		C.int(maxOutSize),
-		&isKeyframe,
-		C.int64_t(enc.pts),
-	)
+	var size C.int
+
+	if frame.Format == PixelFormatRGBA {
+		size = C.cgo_x264_encode(
+			enc.ctx,
+			(*C.uint8_t)(unsafe.Pointer(&frame.Data[0])),
+			C.int(frame.Width),
+			C.int(frame.Height),
+			(*C.uint8_t)(unsafe.Pointer(&outBuf[0])),
+			C.int(maxOutSize),
+			&isKeyframe,
+			C.int64_t(enc.pts),
+		)
+	} else {
+		size = C.cgo_x264_encode_yuv(
+			enc.ctx,
+			(*C.uint8_t)(unsafe.Pointer(&frame.Data[0])),
+			C.int(frame.Width),
+			C.int(frame.Height),
+			(*C.uint8_t)(unsafe.Pointer(&outBuf[0])),
+			C.int(maxOutSize),
+			&isKeyframe,
+			C.int64_t(enc.pts),
+		)
+	}
 
 	enc.pts++
 
