@@ -122,7 +122,7 @@ func ConcatMP4Files(outputPath string, inputPaths []string) error {
 			// Calculate next DTS offset
 			if len(t.Samples) > 0 {
 				lastSample := t.Samples[len(t.Samples)-1]
-				dtsOffsets[tIdx] = lastSample.Time + lastSample.Duration
+				dtsOffsets[tIdx] += lastSample.Time + lastSample.Duration
 			}
 		}
 	}

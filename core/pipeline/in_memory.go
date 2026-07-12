@@ -188,6 +188,15 @@ func RenderScenePipeline(
 	if audioTrack != nil && audioFile != nil {
 		aTrack := *audioTrack
 		aTrack.ID = 2
+		if len(aTrack.Hdlr) == 0 {
+			aTrack.Hdlr = mux.DefaultAudioHdlr()
+		}
+		if len(aTrack.MediaHeader) == 0 {
+			aTrack.MediaHeader = mux.DefaultAudioMediaHeader()
+		}
+		if len(aTrack.Stsd) == 0 {
+			aTrack.Stsd = mux.MakeAudioStsd(aTrack.CodecTag, int(aTrack.Timescale), 2)
+		}
 		tracks = append(tracks, aTrack)
 	}
 

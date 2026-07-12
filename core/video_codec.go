@@ -186,32 +186,57 @@ func min(a, b int) int {
 	return b
 }
 
-// ParseAnnexB Nal units parser
+// ParseAnnexB Nal units parser (handles both Annex B and AVCC formats automatically)
 func ParseAnnexBNalUnits(data []byte) [][]byte {
-	var nals [][]byte
-	i := 0
-	start := -1
-	for i < len(data)-4 {
-		if data[i] == 0 && data[i+1] == 0 && data[i+2] == 0 && data[i+3] == 1 {
-			if start != -1 {
-				nals = append(nals, data[start:i])
-			}
-			start = i + 4
-			i += 4
-			continue
-		}
-		if data[i] == 0 && data[i+1] == 0 && data[i+2] == 1 {
-			if start != -1 {
-				nals = append(nals, data[start:i])
-			}
-			start = i + 3
-			i += 3
-			continue
-		}
-		i++
+	if len(data) < 4 {
+		return nil
 	}
-	if start != -1 && start < len(data) {
-		nals = append(nals, data[start:])
+	// Check if it starts with Annex B start code (0x00000001 or 0x000001)
+	isAnnexB := false
+	if data[0] == 0 && data[1] == 0 {
+		if data[2] == 1 || (data[2] == 0 && data[3] == 1) {
+			isAnnexB = true
+		}
+	}
+	if isAnnexB {
+		var nals [][]byte
+		i := 0
+		start := -1
+		for i < len(data)-4 {
+			if data[i] == 0 && data[i+1] == 0 && data[i+2] == 0 && data[i+3] == 1 {
+				if start != -1 {
+					nals = append(nals, data[start:i])
+				}
+				start = i + 4
+				i += 4
+				continue
+			}
+			if data[i] == 0 && data[i+1] == 0 && data[i+2] == 1 {
+				if start != -1 {
+					nals = append(nals, data[start:i])
+				}
+				start = i + 3
+				i += 3
+				continue
+			}
+			i++
+		}
+		if start != -1 && start < len(data) {
+			nals = append(nals, data[start:])
+		}
+		return nals
+	}
+
+	// Otherwise, parse as AVCC (4-byte length prefix)
+	var nals [][]byte
+	offset := 0
+	for offset+4 <= len(data) {
+		nalLen := int(data[offset])<<24 | int(data[offset+1])<<16 | int(data[offset+2])<<8 | int(data[offset+3])
+		if nalLen < 0 || offset+4+nalLen > len(data) {
+			break
+		}
+		nals = append(nals, data[offset+4:offset+4+nalLen])
+		offset += 4 + nalLen
 	}
 	return nals
 }

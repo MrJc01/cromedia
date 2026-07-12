@@ -507,7 +507,68 @@ func (d *MP4Demuxer) parseCodecPrivateAndHDR(tr *core.Track) {
 
 			currIdx += boxSize
 		}
+	} else if tr.Type == core.TrackTypeAudio {
+		subBoxesStart := idx + 8 + 28
+		subBoxesEnd := idx + entrySize
+
+		currIdx := subBoxesStart
+		for currIdx+8 <= subBoxesEnd && currIdx < len(tr.Stsd) {
+			boxSize := int(binary.BigEndian.Uint32(tr.Stsd[currIdx : currIdx+4]))
+			boxType := string(tr.Stsd[currIdx+4 : currIdx+8])
+
+			if boxSize <= 0 || currIdx+boxSize > subBoxesEnd {
+				break
+			}
+
+			payloadOffset := currIdx + 8
+			payloadSize := boxSize - 8
+
+			if boxType == "esds" {
+				esdsData := tr.Stsd[payloadOffset : payloadOffset+payloadSize]
+				if len(esdsData) > 4 {
+					// Skip version/flags (4 bytes)
+					descData := esdsData[4:]
+					tag3, payload3, _ := readDescriptor(descData)
+					if tag3 == 0x03 && len(payload3) > 3 {
+						// Skip ES_ID (2 bytes) + flags (1 byte)
+						descData3 := payload3[3:]
+						tag4, payload4, _ := readDescriptor(descData3)
+						if tag4 == 0x04 && len(payload4) > 13 {
+							// Skip ObjectTypeIndication (1), StreamType (1), BufferSize (3), MaxBitrate (4), AvgBitrate (4)
+							descData4 := payload4[13:]
+							tag5, payload5, _ := readDescriptor(descData4)
+							if tag5 == 0x05 {
+								tr.CodecPrivate = append([]byte{}, payload5...)
+							}
+						}
+					}
+				}
+			}
+
+			currIdx += boxSize
+		}
 	}
+}
+
+func readDescriptor(data []byte) (tag byte, payload []byte, nextOffset int) {
+	if len(data) < 2 {
+		return 0, nil, 0
+	}
+	tag = data[0]
+	idx := 1
+	length := 0
+	for idx < len(data) {
+		b := data[idx]
+		idx++
+		length = (length << 7) | int(b&0x7F)
+		if (b & 0x80) == 0 {
+			break
+		}
+	}
+	if idx+length > len(data) {
+		return 0, nil, 0
+	}
+	return tag, data[idx : idx+length], idx + length
 }
 
 // Helper to read FullBox header (Version + Flags)

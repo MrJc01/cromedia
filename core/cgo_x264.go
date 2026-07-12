@@ -263,7 +263,17 @@ func (enc *SimH264Encoder) Encode(frame *VideoFrame) (*Packet, error) {
 		return nil, err
 	}
 
-	err := enc.batchProc.AddFrame(frame)
+	// Clone the frame so the caller can safely recycle the original frame's data buffer.
+	clonedData := GlobalGet(len(frame.Data))
+	copy(clonedData, frame.Data)
+	clonedFrame := &VideoFrame{
+		Width:  frame.Width,
+		Height: frame.Height,
+		Format: frame.Format,
+		Data:   clonedData,
+	}
+
+	err := enc.batchProc.AddFrame(clonedFrame)
 	if err != nil {
 		return nil, err
 	}
@@ -277,6 +287,7 @@ func (enc *SimH264Encoder) Encode(frame *VideoFrame) (*Packet, error) {
 }
 
 func (enc *SimH264Encoder) encodeFrameDirect(frame *VideoFrame) error {
+	defer GlobalPut(frame.Data)
 	if frame.Format != PixelFormatRGBA && frame.Format != PixelFormatYUV420P {
 		return errors.New("cgo x264 encoder expects RGBA or YUV420P frames")
 	}
@@ -320,9 +331,10 @@ func (enc *SimH264Encoder) encodeFrameDirect(frame *VideoFrame) error {
 	if size > 0 {
 		pktData := make([]byte, size)
 		copy(pktData, outBuf[:size])
+		avccData := annexBToAVCC(pktData)
 		pkt := &Packet{
 			ID:         NewPacketID(),
-			Data:       pktData,
+			Data:       avccData,
 			PTS:        enc.pts - 1,
 			DTS:        enc.pts - 1,
 			IsKeyframe: isKeyframe != 0,
@@ -331,6 +343,29 @@ func (enc *SimH264Encoder) encodeFrameDirect(frame *VideoFrame) error {
 	}
 
 	return nil
+}
+
+func annexBToAVCC(annexBData []byte) []byte {
+	nals := ParseAnnexBNalUnits(annexBData)
+	if len(nals) == 0 {
+		return annexBData
+	}
+	totalSize := 0
+	for _, nal := range nals {
+		totalSize += 4 + len(nal)
+	}
+	avccData := make([]byte, totalSize)
+	offset := 0
+	for _, nal := range nals {
+		length := uint32(len(nal))
+		avccData[offset] = byte(length >> 24)
+		avccData[offset+1] = byte(length >> 16)
+		avccData[offset+2] = byte(length >> 8)
+		avccData[offset+3] = byte(length)
+		copy(avccData[offset+4:], nal)
+		offset += 4 + len(nal)
+	}
+	return avccData
 }
 
 func (enc *SimH264Encoder) flushDirect() (*Packet, error) {
@@ -352,9 +387,10 @@ func (enc *SimH264Encoder) flushDirect() (*Packet, error) {
 	if size > 0 {
 		pktData := make([]byte, size)
 		copy(pktData, outBuf[:size])
+		avccData := annexBToAVCC(pktData)
 		return &Packet{
 			ID:         NewPacketID(),
-			Data:       pktData,
+			Data:       avccData,
 			PTS:        enc.pts,
 			DTS:        enc.pts,
 			IsKeyframe: isKeyframe != 0,

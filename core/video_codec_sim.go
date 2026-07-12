@@ -28,6 +28,10 @@ func (e *SimH264Encoder) Close() error {
 
 type SimH264Decoder struct{}
 
+func (d *SimH264Decoder) Init(codecPrivate []byte) error {
+	return nil
+}
+
 func (d *SimH264Decoder) Decode(pkt *Packet) (*VideoFrame, error) {
 	if pkt == nil {
 		return nil, nil

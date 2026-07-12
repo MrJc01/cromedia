@@ -106,7 +106,69 @@ import (
 )
 
 type SimH264Decoder struct {
-	ctx *C.cgo_h264_dec_t
+	ctx          *C.cgo_h264_dec_t
+	spsPpsAnnexB []byte
+	initialized  bool
+}
+
+func (d *SimH264Decoder) Init(codecPrivate []byte) error {
+	if len(codecPrivate) < 8 {
+		return nil
+	}
+
+	data := codecPrivate
+	if string(data[4:8]) == "avcC" {
+		data = data[8:]
+	}
+
+	if len(data) < 7 {
+		return nil
+	}
+
+	numSPS := int(data[5] & 0x1F)
+	idx := 6
+	var spsPps []byte
+
+	for i := 0; i < numSPS; i++ {
+		if idx+2 > len(data) {
+			return nil
+		}
+		spsLen := int(data[idx])<<8 | int(data[idx+1])
+		idx += 2
+		if idx+spsLen > len(data) {
+			return nil
+		}
+		sps := data[idx : idx+spsLen]
+		spsPps = append(spsPps, 0x00, 0x00, 0x00, 0x01)
+		spsPps = append(spsPps, sps...)
+		idx += spsLen
+	}
+
+	if idx+1 > len(data) {
+		d.spsPpsAnnexB = spsPps
+		return nil
+	}
+
+	numPPS := int(data[idx])
+	idx++
+
+	for i := 0; i < numPPS; i++ {
+		if idx+2 > len(data) {
+			return nil
+		}
+		ppsLen := int(data[idx])<<8 | int(data[idx+1])
+		idx += 2
+		if idx+ppsLen > len(data) {
+			return nil
+		}
+		pps := data[idx : idx+ppsLen]
+		spsPps = append(spsPps, 0x00, 0x00, 0x00, 0x01)
+		spsPps = append(spsPps, pps...)
+		idx += ppsLen
+	}
+
+	d.spsPpsAnnexB = spsPps
+	return nil
 }
 
 func (d *SimH264Decoder) Decode(pkt *Packet) (*VideoFrame, error) {
@@ -121,11 +183,60 @@ func (d *SimH264Decoder) Decode(pkt *Packet) (*VideoFrame, error) {
 		}
 	}
 
+	data := pkt.Data
+	if len(data) >= 4 {
+		// Use a robust heuristic to check if the packet is in AVCC format
+		isAVCC := true
+		offset := 0
+		for offset < len(pkt.Data) {
+			if offset+4 > len(pkt.Data) {
+				isAVCC = false
+				break
+			}
+			nalLen := int(pkt.Data[offset])<<24 | int(pkt.Data[offset+1])<<16 | int(pkt.Data[offset+2])<<8 | int(pkt.Data[offset+3])
+			if nalLen < 0 || offset+4+nalLen > len(pkt.Data) {
+				isAVCC = false
+				break
+			}
+			offset += 4 + nalLen
+		}
+		if offset != len(pkt.Data) {
+			isAVCC = false
+		}
+
+		if isAVCC {
+			converted := make([]byte, len(pkt.Data))
+			copy(converted, pkt.Data)
+			offset := 0
+			for offset+4 <= len(converted) {
+				nalLen := int(converted[offset])<<24 | int(converted[offset+1])<<16 | int(converted[offset+2])<<8 | int(converted[offset+3])
+				if offset+4+nalLen > len(converted) || nalLen < 0 {
+					break
+				}
+				converted[offset] = 0x00
+				converted[offset+1] = 0x00
+				converted[offset+2] = 0x00
+				converted[offset+3] = 0x01
+				offset += 4 + nalLen
+			}
+			data = converted
+		}
+	}
+
+	// Prepend SPS/PPS if we have it and the decoder is not yet initialized
+	if len(d.spsPpsAnnexB) > 0 && !d.initialized {
+		prepended := make([]byte, len(d.spsPpsAnnexB)+len(data))
+		copy(prepended, d.spsPpsAnnexB)
+		copy(prepended[len(d.spsPpsAnnexB):], data)
+		data = prepended
+		d.initialized = true
+	}
+
 	var frame C.cgo_h264_frame_t
 	ret := C.cgo_h264_dec_decode(
 		d.ctx,
-		(*C.uint8_t)(unsafe.Pointer(&pkt.Data[0])),
-		C.int(len(pkt.Data)),
+		(*C.uint8_t)(unsafe.Pointer(&data[0])),
+		C.int(len(data)),
 		&frame,
 	)
 

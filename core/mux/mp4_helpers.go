@@ -85,17 +85,12 @@ func MakeH264Stsd(width, height int, sps, pps []byte) []byte {
 	}
 
 	// 3. Build stsd payload
-	stsdData := new(ExcludeBuffer)
-	stsdData.WriteUint32(0) // version + flags = 0
-	stsdData.WriteUint32(1) // entry count = 1
+	payload := new(ExcludeBuffer)
+	payload.WriteUint32(0) // version + flags = 0
+	payload.WriteUint32(1) // entry count = 1
+	payload.WriteBytes(serializeAtom(avc1Atom))
 
-	stsdAtom := &SimpleAtom{
-		Type:     "stsd",
-		Data:     stsdData.Bytes(),
-		Children: []*SimpleAtom{avc1Atom},
-	}
-
-	return serializeAtom(stsdAtom)
+	return payload.Bytes()
 }
 
 // MakeAACStsd constructs a valid AAC stsd box payload containing AudioSpecificConfig (asc).
@@ -158,16 +153,44 @@ func MakeAACStsd(sampleRate int, channels int, asc []byte) []byte {
 		Children: []*SimpleAtom{esdsAtom},
 	}
 
-	// 3. Build stsd
-	stsdData := new(ExcludeBuffer)
-	stsdData.WriteUint32(0) // version + flags = 0
-	stsdData.WriteUint32(1) // entry count = 1
+	// 3. Build stsd payload
+	payload := new(ExcludeBuffer)
+	payload.WriteUint32(0) // version + flags = 0
+	payload.WriteUint32(1) // entry count = 1
+	payload.WriteBytes(serializeAtom(mp4aAtom))
 
-	stsdAtom := &SimpleAtom{
-		Type:     "stsd",
-		Data:     stsdData.Bytes(),
-		Children: []*SimpleAtom{mp4aAtom},
+	return payload.Bytes()
+}
+
+// MakeAudioStsd constructs a basic audio stsd box payload for standard audio tracks.
+func MakeAudioStsd(codecTag string, sampleRate int, channels int) []byte {
+	// Pad or trim codecTag to 4 characters
+	tag := codecTag
+	if len(tag) < 4 {
+		tag = tag + "    "
+	}
+	tag = tag[:4]
+
+	audioData := new(ExcludeBuffer)
+	audioData.WriteBytes(make([]byte, 6)) // reserved
+	audioData.WriteUint16(1)              // data_reference_index = 1
+	audioData.WriteBytes(make([]byte, 8))  // reserved
+	audioData.WriteUint16(uint16(channels))
+	audioData.WriteUint16(16)             // samplesize = 16
+	audioData.WriteUint16(0)              // pre_defined = 0
+	audioData.WriteUint16(0)              // reserved = 0
+	audioData.WriteUint32(uint32(sampleRate << 16))
+
+	audioAtom := &SimpleAtom{
+		Type: tag,
+		Data: audioData.Bytes(),
 	}
 
-	return serializeAtom(stsdAtom)
+	payload := new(ExcludeBuffer)
+	payload.WriteUint32(0) // version + flags = 0
+	payload.WriteUint32(1) // entry count = 1
+	payload.WriteBytes(serializeAtom(audioAtom))
+
+	return payload.Bytes()
 }
+
